@@ -23,6 +23,39 @@ knitr::opts_chunk$set(echo = TRUE)
 
 <https://www.kaggle.com/datasets/jackdaoud/marketing-data/data?select=dictionary.png>
 
-A base de dados contém informações de 2206 clientes de uma empresa. Os dados são relacionados à: \* Perfil dos clientes \* Produtos \* Campanhas bem / mau sucedidas \* Performance do canal
+A base de dados contém informações de 2206 clientes de uma empresa. Os dados são relacionados à:
 
-## Modelos supervisionados escolhidos:
+-   Perfil dos clientes
+
+```{=html}
+<!-- -->
+```
+-   Produtos
+
+-   Campanhas bem / mau sucedidas
+
+-   Performance do canal
+
+## Modelos supervisionados:
+
+Tipo de Problema: Classificação
+
+Modelos:
+
+-   Regressão Logística
+
+-   Floresta Aleatória
+
+-   Boosting
+
+-   Lasso
+
+-   Ridge
+
+-   Rede Neural
+
+## Modelos não supervisionados:
+
+-   KMeans
+
+-   PCA
