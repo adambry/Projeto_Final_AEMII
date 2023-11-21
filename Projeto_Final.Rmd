@@ -25,20 +25,19 @@ A base de dados contém informações de 2206 clientes de uma empresa. Os dados 
 
 -   Perfil dos clientes
 
-```{=html}
-<!-- -->
-```
 -   Produtos
 
 -   Campanhas bem / mau sucedidas
 
 -   Performance do canal
 
+
 # Proposta de Valor
 
 Através dos modelos supervisionados, nossa proposta é dentificar chance de clientes aderirem às campanhas.
 
 Com isto feito, nossa proposta, através do método KMeans será realizar o agrupamento de clientes. Isso é útil para que a realização de segmentação de público em campanhas de marketing.
+
 
 ## Modelos supervisionados:
 
