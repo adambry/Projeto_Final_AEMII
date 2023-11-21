@@ -1,0 +1,28 @@
+---
+title: "Projeto Final AEM II"
+author: "André Dambry, Mainara Cardoso, Tiago Pardo"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Projeto Final AEM II
+
+## Objetivo:
+
+### 1) Utilizar métodos de aprendizagem supervisionada (regressão ou classificação)
+
+### 2) Realização de análise de um problema não supervisionado
+
+## Base de dados:
+
+### Marketing Analytics
+
+<https://www.kaggle.com/datasets/jackdaoud/marketing-data/data?select=dictionary.png>
+
+A base de dados contém informações de 2206 clientes de uma empresa. Os dados são relacionados à: \* Perfil dos clientes \* Produtos \* Campanhas bem / mau sucedidas \* Performance do canal
+
+## Modelos supervisionados escolhidos:
