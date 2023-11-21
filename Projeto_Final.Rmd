@@ -112,12 +112,12 @@ metadata
 dfSummary(dados)
 ```
 
-Através do Skim verificamos:
+Através do dfSummary verificamos:
 
 1.  Ausência de valores vazios
-2.  Tipo dos dados estão corretor
+2.  Tipo dos dados estão corretos
 3.  Variáveis categóricas estão previamente tratadas como Dummies
-4.  
+4.  Há uma coluna com valores negativos que precisam ser tratados.
 
 ## 1.1. Limpeza
 
