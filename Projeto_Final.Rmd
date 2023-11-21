@@ -9,8 +9,6 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Projeto Final AEM II
-
 ## Objetivo:
 
 ### 1) Utilizar métodos de aprendizagem supervisionada (regressão ou classificação)
@@ -23,6 +21,168 @@ knitr::opts_chunk$set(echo = TRUE)
 
 <https://www.kaggle.com/datasets/jackdaoud/marketing-data/data?select=dictionary.png>
 
-A base de dados contém informações de 2206 clientes de uma empresa. Os dados são relacionados à: \* Perfil dos clientes \* Produtos \* Campanhas bem / mau sucedidas \* Performance do canal
+A base de dados contém informações de 2206 clientes de uma empresa. Os dados são relacionados à:
 
-## Modelos supervisionados escolhidos:
+-   Perfil dos clientes
+
+```{=html}
+<!-- -->
+```
+-   Produtos
+
+-   Campanhas bem / mau sucedidas
+
+-   Performance do canal
+
+# Proposta de Valor
+
+Através dos modelos supervisionados, nossa proposta é dentificar chance de clientes aderirem às campanhas.
+
+Com isto feito, nossa proposta, através do método KMeans será realizar o agrupamento de clientes. Isso é útil para que a realização de segmentação de público em campanhas de marketing.
+
+## Modelos supervisionados:
+
+Tipo de Problema: Classificação
+
+Modelos:
+
+-   Regressão Logística
+
+-   Floresta Aleatória
+
+-   Boosting
+
+-   Lasso
+
+-   Ridge
+
+-   Rede Neural
+
+## Modelos não supervisionados:
+
+-   KMeans
+
+-   PCA
+
+# Bibliotecas
+
+```{r}
+# install.packages("summarytools")
+```
+
+```{r}
+library (readr)
+library (dplyr)
+library (tidyr)
+library (tidyverse)
+library (skimr)
+library (ggplot2)
+library(summarytools)
+```
+
+# Importação de dados
+
+```{r}
+urlfile <- "https://raw.githubusercontent.com/nailson/ifood-data-business-analyst-test/master/ifood_df.csv"
+dados <-read_csv(url(urlfile))
+```
+
+# Geração de metadados
+
+```{r}
+metadata <- dados  %>%
+  lapply(type_sum) %>%
+  as_tibble() %>%
+  pivot_longer(cols = 1:ncol(dados),
+               names_to = "Coluna",
+               values_to = "Tipo") %>%
+  inner_join(
+    dados %>%
+      summarise(across(everything(), ~sum(is.na(.)))) %>%
+      pivot_longer(cols = 1:ncol(dados),
+                   names_to = "Coluna",
+                   values_to = "Total NA")
+  )
+
+metadata
+```
+
+# 1. Tratamento
+
+```{r}
+dfSummary(dados)
+```
+
+Através do Skim verificamos:
+
+1.  Ausência de valores vazios
+2.  Tipo dos dados estão corretor
+3.  Variáveis categóricas estão previamente tratadas como Dummies
+4.  
+
+## 1.1. Limpeza
+
+É visto que na 38ª coluna há valores negativos, no que se refere ao valor das compras realizadas na plataforma. Como o valor das compras não podem ser negativos e há somente 3 deles, eles serão retirados da base.
+
+```{r}
+# verificando quantidade de dados negativos na coluna:
+sum(dados[38] < 0)
+```
+
+```{r}
+# filtrando valores negativos da base
+dados <- dados %>%
+            filter (dados$MntRegularProds > 0)
+```
+
+Há duas colunas que possuem um único valor distinto. Portanto, essas coluna serão removidas, uma vez que não trazem informações úteis.
+
+```{r}
+col_rem <- c("Z_CostContact", "Z_Revenue")
+
+dados <- dados %>% select(-one_of(col_rem))
+```
+
+```{r}
+dados
+```
+
+## 1.2. Transformações
+
+Para melhor funcionamento dos modelos, verificaremos a existência de outliers nas colunas com valores numéricos
+
+Obs: Não consideramos colunas com valores numéricos binários ou que não façam sentido de terem seus outliers analisados.
+
+```{r}
+cols <- c('Age', 'Income', 'Recency', 'NumWebVisitsMonth', 'Customer_Days',
+          'MntTotal', 'MntRegularProds', 'MntWines', 'MntFruits', 'MntMeatProducts', 
+          'MntFishProducts', 'MntSweetProducts', 'MntGoldProds', 'NumDealsPurchases', 
+          'NumWebPurchases', 'NumCatalogPurchases', 'NumStorePurchases')
+
+# Cálculo de outliers
+
+for (column in cols) {
+  q1 <- quantile(dados[[column]], 0.25)
+  q3 <- quantile(dados[[column]], 0.75)
+  q95 <- quantile(dados[[column]], 0.95)
+  iqr <- q3 - q1
+  median <- median(dados[[column]])
+  outlier_limit <- median + 1.5 * iqr
+  # Count the number of values above the limit
+  outlier_count <- sum(dados[[column]] > outlier_limit)
+  cat(sprintf('%20s | median+1.5xiqr: %8.2f | 95quantile: %8.2f | outliers: %d\n', 
+              column, outlier_limit, q95, outlier_count))
+}
+```
+
+Verificando distribuição dos dados com gráficos Bloxplot
+
+```{r}
+# Configuração de layout para exibir 4x5 boxplots
+par(mfrow = c(4, 5), mar = c(2, 2, 2, 2))
+
+#Plot dos boxplots
+for (col in cols) {  
+  boxplot(dados[[col]], main = col, col = "lightblue", border = "black", notch = TRUE)
+}
+```
