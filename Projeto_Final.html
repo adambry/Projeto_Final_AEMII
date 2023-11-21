@@ -375,10 +375,7 @@ classificação)</h3>
 <p>A base de dados contém informações de 2206 clientes de uma empresa.
 Os dados são relacionados à:</p>
 <ul>
-<li>Perfil dos clientes</li>
-</ul>
-<!-- -->
-<ul>
+<li><p>Perfil dos clientes</p></li>
 <li><p>Produtos</p></li>
 <li><p>Campanhas bem / mau sucedidas</p></li>
 <li><p>Performance do canal</p></li>
@@ -408,8 +405,7 @@ segmentação de público em campanhas de marketing.</p>
 <div id="modelos-não-supervisionados" class="section level2">
 <h2>Modelos não supervisionados:</h2>
 <ul>
-<li><p>KMeans</p></li>
-<li><p>PCA</p></li>
+<li>KMeans</li>
 </ul>
 </div>
 </div>
@@ -694,12 +690,12 @@ dados &lt;-read_csv(url(urlfile))</code></pre>
 ##                             IQR (CV) : 0 (2.3)              3 :   44 ( 2.0%)                                                  
 ##                                                             4 :   11 ( 0.5%)                                                  
 ## ------------------------------------------------------------------------------------------------------------------------------</code></pre>
-<p>Através do Skim verificamos:</p>
+<p>Através do dfSummary verificamos:</p>
 <ol style="list-style-type: decimal">
 <li>Ausência de valores vazios</li>
-<li>Tipo dos dados estão corretor</li>
+<li>Tipo dos dados estão corretos</li>
 <li>Variáveis categóricas estão previamente tratadas como Dummies</li>
-<li></li>
+<li>Há uma coluna com valores negativos que precisam ser tratados.</li>
 </ol>
 <div id="limpeza" class="section level2">
 <h2>1.1. Limpeza</h2>

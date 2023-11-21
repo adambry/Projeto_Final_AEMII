@@ -61,8 +61,6 @@ Modelos:
 
 -   KMeans
 
--   PCA
-
 # Bibliotecas
 
 ```{r}
