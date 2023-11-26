@@ -31,13 +31,11 @@ A base de dados contém informações de 2206 clientes de uma empresa. Os dados 
 
 -   Performance do canal
 
-
 # Proposta de Valor
 
 Através dos modelos supervisionados, nossa proposta é dentificar chance de clientes aderirem às campanhas.
 
 Com isto feito, nossa proposta, através do método KMeans será realizar o agrupamento de clientes. Isso é útil para que a realização de segmentação de público em campanhas de marketing.
-
 
 ## Modelos supervisionados:
 
@@ -75,6 +73,14 @@ library (tidyverse)
 library (skimr)
 library (ggplot2)
 library(summarytools)
+library(tidymodels)
+library(ISLR)
+library(tidyverse)
+library(doParallel)
+library(glmnet)
+library(ranger)
+library(parsnip)
+library(vip)
 ```
 
 # Importação de dados
@@ -182,4 +188,287 @@ par(mfrow = c(4, 5), mar = c(2, 2, 2, 2))
 for (col in cols) {  
   boxplot(dados[[col]], main = col, col = "lightblue", border = "black", notch = TRUE)
 }
+```
+
+## 1.3. Separação entre treino e teste
+
+```{r}
+split <- initial_split(dados, prop = 0.7, strata = "Response")
+
+treinamento <- training(split)
+teste <- testing(split)
+```
+
+# 3. Modelagem Estatística
+
+Utilizaremos Tidy Models para os modelos que o comportam
+
+```{r}
+receita <- recipe(Response ~ ., treinamento) %>% # define a receita, com a variavel resposta e os dados de treinamento
+  step_normalize(all_numeric()) %>%  #normaliza todas variaveis numericas
+  step_mutate(Response = as.factor(Response)) # transformando variável resposta em fator
+
+```
+
+```{r}
+receita_prep <- prep(receita) # prepara a receita definida acima
+
+treinamento_proc <- bake(receita_prep, new_data = NULL) # obtem os dados de treinamento processados
+
+teste_proc <- bake(receita_prep, new_data = teste) # obtem os dados de teste processados
+```
+
+## 2.1. Modelos Supervisionados
+
+# 2.1.1. Regressão Logística
+
+Transformando variável "Response" em Factor
+
+```{r}
+fit_glm <- logistic_reg() %>% # define um modelo de regressao logistica
+  set_engine("glm") %>% # define a engine do modelo
+  set_mode("classification") %>% # define que e'  problema de classificacao
+  fit(Response ~ ., treinamento_proc) # executa o modelo e estima os parametros
+
+
+fit_glm # estimativas do modelo ajustado
+
+tidy(fit_glm) # estimativas do modelo ajustado em formato tidy
+
+```
+
+Criando Tibble com resultado
+
+```{r}
+fitted <- fit_glm %>% 
+  predict(new_data = teste_proc, type = "prob") %>% # realiza predicao para os dados de teste
+  mutate(observado = teste_proc$default, # cria uma coluna com o valor observado de default
+         modelo = "logistica") # cria uma coluna para indicar qual o modelo ajustado
+
+head(fitted) # mostra as 6 primeiras linhas do tibble criado
+```
+
+### 2.1.2. LASSO
+
+Criando o modelo
+
+```{r}
+lasso <- logistic_reg(penalty = tune(), mixture = 1) %>% # define o modelo lasso e o parametro a ser tunado (o lambda)
+  set_engine("glmnet") %>% # define a engine do modelo
+  set_mode("classification") # define que e'  problema de classificacao
+```
+
+Validação Cruzada
+
+```{r}
+set.seed(321)
+
+cv_split <- vfold_cv(treinamento, v = 10, strata = "Response")
+
+doParallel::registerDoParallel() # paraleliza os proximos comandos
+
+lambda_tune <- tune_grid(lasso, # especificacao do modelo
+                         receita,# a receita a ser aplicada a cada lote
+                         resamples = cv_split, # os lotes da validacao cruzada
+                         grid = 30,# quantas combinacoes de parametros vamos considerar
+                         metrics = metric_set(roc_auc, accuracy)) # metricas consideradas
+
+autoplot(lambda_tune) # plota os resultados
+
+```
+
+```{r}
+lambda_tune %>% 
+  collect_metrics() # obtem as metricas calculadas
+
+best <- lambda_tune %>% 
+  select_best("roc_auc") # seleciona a melhor combinacao de hiperparametros
+
+fit_lasso <- finalize_model(lasso, parameters = best) %>% # informa os valores de hiperparametros a serem considerados
+  fit(Response ~ .,data = treinamento_proc) # executa o modelo com os valores de hiperparametros definidos acima
+```
+
+
+```{r}
+fitted <- fitted %>% #      empilha as previsoes do lasso
+  bind_rows(fit_lasso %>% # os valores preditos pelo lasso
+              predict(new_data = teste_proc, type = "prob") %>% 
+              mutate(observado = teste_proc$Response, 
+                     modelo = "lasso"))
+
+head(fitted)
+tail(fitted)
+```
+
+### 2.1.3. Ridge
+
+Definindo o modelo, parãmetro de tunagem e engine
+
+```{r}
+ridge <- logistic_reg(penalty = tune(), mixture = 0) %>%
+  set_engine("glmnet") %>%
+  set_mode("classification") 
+```
+
+Validação Cruzada
+
+```{r}
+set.seed(321)
+
+cv_split <- vfold_cv(treinamento, v = 10, strata = "Response")
+
+doParallel::registerDoParallel() # paraleliza os proximos comandos
+
+lambda_tune <- tune_grid(ridge, # especificacao do modelo
+                         receita,# a receita a ser aplicada a cada lote
+                         resamples = cv_split, # os lotes da validacao cruzada
+                         grid = 30,# quantas combinacoes de parametros vamos considerar
+                         metrics = metric_set(roc_auc, accuracy)) # metricas consideradas
+
+autoplot(lambda_tune) # plota os resultados
+
+```
+
+```{r}
+lambda_tune %>% 
+  collect_metrics() # obtem as metricas calculadas
+
+best <- lambda_tune %>% 
+  select_best("roc_auc") # seleciona a melhor combinacao de hiperparametros
+
+fit_ridge <- finalize_model(ridge, parameters = best) %>% # informa os valores de hiperparametros a serem considerados
+  fit(Response ~ .,data = treinamento_proc) # executa o modelo com os valores de hiperparametros definidos acima
+
+fitted <- fitted %>% #      empilha as previsoes do lasso
+  bind_rows(fit_ridge %>% # os valores preditos pelo lasso
+              predict(new_data = teste_proc, type = "prob") %>% 
+              mutate(observado = teste_proc$Response, 
+                     modelo = "ridge"))
+
+head(fitted)
+tail(fitted)
+```
+
+# 3.1.4. Floresta Aleatória
+
+Definindo o modelo, cálculo de importância das variáveis e tipo de previsão
+
+```{r}
+
+rf <- rand_forest() %>%
+  set_engine("ranger",
+             importance = "permutation") %>%  
+  set_mode("classification")
+
+rf
+
+```
+
+Ajuste do modelo
+
+```{r}
+rf_fit <- rf %>% 
+  fit(Response ~ ., treinamento_proc)
+rf_fit
+```
+
+Verificando a importância das variaveis para o modelo
+
+```{r}
+vip(rf_fit)
+```
+
+Inserindo resultados na tabela
+
+```{r}
+fitted_rf <- rf_fit %>% 
+  predict(new_data = teste_proc) %>% # realiza predicao para os dados de teste
+  mutate(observado = teste_proc$Response, # mesma estrutura do fitted_lm
+         modelo = "random forest")
+```
+
+
+```{r}
+fitted <- fitted %>% 
+  bind_rows(fitted_rf) # empilha o tibble fitted_rf abaixo do fitted_lm
+
+head(fitted)
+tail(fitted)
+```
+
+avaliar desempenho
+
+Ajustando Hiperparâmetros
+
+```{r}
+rf2 <- rand_forest(mtry = tune(),
+                   trees = tune(), # todos argumentos com tune() serao tunados a seguir  
+                   min_n = tune()) %>% 
+  set_engine("ranger") %>% #
+  set_mode("classification") 
+  
+rf2
+```
+
+Realizando Validação Cruzada
+
+```{r}
+set.seed(123)
+cv_split <- vfold_cv(treinamento, v = 10)
+
+registerDoParallel() # pararaleliza o processo
+
+# para tunar os parametros
+rf_grid <- tune_grid(rf2, # especificacao do modelo
+                     receita, # a receita a ser aplicada a cada lote
+                     resamples = cv_split, # os lotes da validacao cruzada
+                     grid = 10, # quantas combinacoes de parametros vamos considerar
+                     metrics = metric_set(roc_auc, accuracy))
+```
+
+Plotando os resultados
+
+```{r}
+autoplot(rf_grid)
+```
+
+Selecionando a melhor combinaçãod e hiperparametros e salvando na variável
+
+```{r}
+rf_grid %>% 
+  collect_metrics() 
+
+best <- rf_grid %>% 
+  select_best("roc_auc")
+```
+
+Finalizando o modelo
+
+```{r}
+rf_fit2 <- finalize_model(rf2, parameters = best) %>% # informa os valores de hiperparametros a serem considerados
+  
+  fit(Response ~ ., treinamento_proc) # executa o modelo com os valores de hiperparametros definidos acima
+```
+
+Previsão para os dados de teste
+
+```{r}
+fitted_rf2 <- rf_fit2 %>% # faz previsao para os dados de teste
+  predict(new_data = teste_proc) %>% 
+  mutate(observado = teste_proc$Response, 
+         modelo = "random forest - tune")
+
+fitted <- fitted %>%
+  bind_rows(fitted_rf2)
+```
+
+<font color=red> esse deve ser o último snipet após realizar a tabela de resultado de todos os modelos <font>
+
+Comparando desempenho dos modelos
+
+```{r}
+fitted %>% # obtem as metricas de todos os modelos ajustados
+  group_by(modelo) %>% 
+  
+  metrics(truth = observado, estimate = .pred) 
 ```
