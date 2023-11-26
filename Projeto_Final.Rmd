@@ -72,15 +72,15 @@ library (tidyr)
 library (tidyverse)
 library (skimr)
 library (ggplot2)
-library(summarytools)
-library(tidymodels)
-library(ISLR)
-library(tidyverse)
-library(doParallel)
-library(glmnet)
-library(ranger)
-library(parsnip)
-library(vip)
+library (summarytools)
+library (tidymodels)
+library (ISLR)
+library (tidyverse)
+library (doParallel)
+library (glmnet)
+library (ranger)
+library (parsnip)
+library (vip)
 ```
 
 # Importação de dados
@@ -205,8 +205,9 @@ Utilizaremos Tidy Models para os modelos que o comportam
 
 ```{r}
 receita <- recipe(Response ~ ., treinamento) %>% # define a receita, com a variavel resposta e os dados de treinamento
-  step_normalize(all_numeric()) %>%  #normaliza todas variaveis numericas
-  step_mutate(Response = as.factor(Response)) # transformando variável resposta em fator
+  step_mutate(Response = as.factor(Response)) %>% 
+  step_normalize(all_numeric())  #normaliza todas variaveis numericas
+   # transformando variável resposta em fator
 
 ```
 
@@ -218,20 +219,19 @@ treinamento_proc <- bake(receita_prep, new_data = NULL) # obtem os dados de trei
 teste_proc <- bake(receita_prep, new_data = teste) # obtem os dados de teste processados
 ```
 
+
+
 ## 2.1. Modelos Supervisionados
 
 # 2.1.1. Regressão Logística
 
-Transformando variável "Response" em Factor
-
+Definindo modelo, engine e realizando o fit
 ```{r}
-fit_glm <- logistic_reg() %>% # define um modelo de regressao logistica
-  set_engine("glm") %>% # define a engine do modelo
-  set_mode("classification") %>% # define que e'  problema de classificacao
-  fit(Response ~ ., treinamento_proc) # executa o modelo e estima os parametros
+fit_glm <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification") %>% 
+  fit(Response ~ ., treinamento_proc) 
 
-
-fit_glm # estimativas do modelo ajustado
 
 tidy(fit_glm) # estimativas do modelo ajustado em formato tidy
 
@@ -242,7 +242,7 @@ Criando Tibble com resultado
 ```{r}
 fitted <- fit_glm %>% 
   predict(new_data = teste_proc, type = "prob") %>% # realiza predicao para os dados de teste
-  mutate(observado = teste_proc$default, # cria uma coluna com o valor observado de default
+  mutate(observado = teste_proc$Response, # cria uma coluna com o valor observado de default
          modelo = "logistica") # cria uma coluna para indicar qual o modelo ajustado
 
 head(fitted) # mostra as 6 primeiras linhas do tibble criado
@@ -382,7 +382,7 @@ Inserindo resultados na tabela
 
 ```{r}
 fitted_rf <- rf_fit %>% 
-  predict(new_data = teste_proc) %>% # realiza predicao para os dados de teste
+  predict(new_data = teste_proc, type = 'prob') %>% # realiza predicao para os dados de teste
   mutate(observado = teste_proc$Response, # mesma estrutura do fitted_lm
          modelo = "random forest")
 ```
@@ -454,7 +454,7 @@ Previsão para os dados de teste
 
 ```{r}
 fitted_rf2 <- rf_fit2 %>% # faz previsao para os dados de teste
-  predict(new_data = teste_proc) %>% 
+  predict(new_data = teste_proc, type = 'prob') %>% 
   mutate(observado = teste_proc$Response, 
          modelo = "random forest - tune")
 
@@ -467,8 +467,8 @@ fitted <- fitted %>%
 Comparando desempenho dos modelos
 
 ```{r}
-fitted %>% # obtem as metricas de todos os modelos ajustados
+fitted %>% 
   group_by(modelo) %>% 
-  
-  metrics(truth = observado, estimate = .pred) 
+  roc_auc(observado, .pred_1)
+
 ```
