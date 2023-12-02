@@ -62,7 +62,11 @@ Modelos:
 # Bibliotecas
 
 ```{r}
-# install.packages("summarytools")
+#install.packages("summarytools")
+#install.packages("reticulate")
+#install.packages("keras")
+#install.packages("imbalance")
+#install.packages("DMwR")
 ```
 
 ```{r}
@@ -75,21 +79,24 @@ library (ggplot2)
 library (summarytools)
 library (tidymodels)
 library (ISLR)
-library (tidyverse)
 library (doParallel)
 library (glmnet)
 library (ranger)
 library (parsnip)
 library (vip)
+library(keras)
+library(corrplot)
+library(imbalance)
+library(DMwR)
+ #library(tensorflow) 
 ```
 
 # Importação de dados
 
 ```{r}
 urlfile <- "https://raw.githubusercontent.com/nailson/ifood-data-business-analyst-test/master/ifood_df.csv"
-dados <-read_csv(url(urlfile))
+dados <- read_csv(url(urlfile))
 ```
-
 # Geração de metadados
 
 ```{r}
@@ -113,24 +120,51 @@ metadata
 # 1. Tratamento
 
 ```{r}
-dfSummary(dados)
+summary(dados)
 ```
 
-Através do dfSummary verificamos:
+Verificando ausência de valores
 
-1.  Ausência de valores vazios
-2.  Tipo dos dados estão corretos
-3.  Variáveis categóricas estão previamente tratadas como Dummies
-4.  Há uma coluna com valores negativos que precisam ser tratados.
+```{r}
+colSums(is.na(dados))
+```
+A base de dados não possui valores ausentes.
+
+Verificando o tipo de dados de cada coluna. 
+
+```{r}
+sapply(dados, class)
+```
+Observa-se que todos as colunas são do tipo numérica. Isso ocorre porque as variáveis categóricas, como estado civil (marital) e nível de educação (education), já estão convertidas para dummy.
+
+Verificando valores negativos.
+
+```{r}
+sapply(dados, function(x) sum(x < 0))
+
+```
+A variável "MntRegularProds", que representa os gastos com produtos regulares, é a única que apresenta valores negativos. 
+
+Verificando colunas com valores únicos.
+
+```{r}
+col_valores_unicos <- sapply(dados, function(x) length(unique(x)) == 1)
+names(dados)[col_valores_unicos]
+```
+
+As colunas "Z_CostContact" e "Z_Revenue", que representam, respectivamente, o custo do contato e o valor da receita, possuem um único valor em todas as observações. 
+
+Assim, pontos a serem destacados sobre a análise inicial dos dados.
+
+1. Ausência de valores vazios.
+2. Tipo dos dados estão corretos.
+3. Variáveis categóricas estão previamente tratadas como dummies.
+4. A coluna "MntRegularProds" possui valores negativos.
+5. As colunas "Z_CostContact" e "Z_Revenue" possuem um único valor em todas as observações. 
 
 ## 1.1. Limpeza
 
-É visto que na 38ª coluna há valores negativos, no que se refere ao valor das compras realizadas na plataforma. Como o valor das compras não podem ser negativos e há somente 3 deles, eles serão retirados da base.
-
-```{r}
-# verificando quantidade de dados negativos na coluna:
-sum(dados[38] < 0)
-```
+Na análise realizada, indentificamos que a variável "MntRegularProds", que indica o valor das compras efetuadas na plataforma, possui 3 valores negativos. Considerando que os valores das compras não podem ser negativos por natureza e que o número de observações com essa característica é pequeno, optamos por remover esses dados da base.
 
 ```{r}
 # filtrando valores negativos da base
@@ -138,7 +172,7 @@ dados <- dados %>%
             filter (dados$MntRegularProds > 0)
 ```
 
-Há duas colunas que possuem um único valor distinto. Portanto, essas coluna serão removidas, uma vez que não trazem informações úteis.
+As colunas "Z_CostContact" e "Z_Revenue", que representam, respectivamente, o custo do contato e o valor da receita, possuem um único valor em todas as observações. Logo, essas colunas não contribuem com informações úteis para aprimorar a precisão dos modelos preditivos ou da segmentação dos clientes. Portanto, estas variáveis serão excluídas da base.
 
 ```{r}
 col_rem <- c("Z_CostContact", "Z_Revenue")
@@ -150,31 +184,35 @@ dados <- dados %>% select(-one_of(col_rem))
 dados
 ```
 
-## 1.2. Transformações
+## 1.2. Análise de outliers
 
-Para melhor funcionamento dos modelos, verificaremos a existência de outliers nas colunas com valores numéricos
+Para melhor funcionamento dos modelos, verificaremos a existência de outliers nas colunas com valores numéricos.
 
 Obs: Não consideramos colunas com valores numéricos binários ou que não façam sentido de terem seus outliers analisados.
 
+Verificando colunas com dados binários. 
+
 ```{r}
-cols <- c('Age', 'Income', 'Recency', 'NumWebVisitsMonth', 'Customer_Days',
-          'MntTotal', 'MntRegularProds', 'MntWines', 'MntFruits', 'MntMeatProducts', 
-          'MntFishProducts', 'MntSweetProducts', 'MntGoldProds', 'NumDealsPurchases', 
-          'NumWebPurchases', 'NumCatalogPurchases', 'NumStorePurchases')
+colunas_binarias <- sapply(dados, function(x) length(unique(x)) == 2)
+names(dados)[colunas_binarias]
+```
+```{r}
+# Selecionar colunas não-binárias
+colunas_nao_binarias <- names(dados)[!colunas_binarias]
 
 # Cálculo de outliers
 
-for (column in cols) {
-  q1 <- quantile(dados[[column]], 0.25)
-  q3 <- quantile(dados[[column]], 0.75)
-  q95 <- quantile(dados[[column]], 0.95)
+for (coluna in colunas_nao_binarias) {
+  q1 <- quantile(dados[[coluna]], 0.25)
+  q3 <- quantile(dados[[coluna]], 0.75)
+  q95 <- quantile(dados[[coluna]], 0.95)
   iqr <- q3 - q1
-  median <- median(dados[[column]])
+  median <- median(dados[[coluna]])
   outlier_limit <- median + 1.5 * iqr
   # Count the number of values above the limit
-  outlier_count <- sum(dados[[column]] > outlier_limit)
+  outlier_count <- sum(dados[[coluna]] > outlier_limit)
   cat(sprintf('%20s | median+1.5xiqr: %8.2f | 95quantile: %8.2f | outliers: %d\n', 
-              column, outlier_limit, q95, outlier_count))
+              coluna, outlier_limit, q95, outlier_count))
 }
 ```
 
@@ -185,12 +223,86 @@ Verificando distribuição dos dados com gráficos Bloxplot
 par(mfrow = c(4, 5), mar = c(2, 2, 2, 2))
 
 #Plot dos boxplots
-for (col in cols) {  
-  boxplot(dados[[col]], main = col, col = "lightblue", border = "black", notch = TRUE)
+for (coluna in colunas_nao_binarias) {  
+  boxplot(dados[[coluna]], main = coluna, coluna = "lightblue", border = "black", notch = TRUE)
 }
 ```
 
-## 1.3. Separação entre treino e teste
+# 2. Análise Exploratória de Dados
+
+```{r}
+# Contagem de frequências para cada campanha
+cat("AcceptedCmp1\n")
+print(table(dados$AcceptedCmp1))
+
+cat("\nAcceptedCmp2\n")
+print(table(dados$AcceptedCmp2))
+
+cat("\nAcceptedCmp3\n")
+print(table(dados$AcceptedCmp3))
+
+cat("\nAcceptedCmp4\n")
+print(table(dados$AcceptedCmp4))
+
+cat("\nAcceptedCmp5\n")
+print(table(dados$AcceptedCmp5))
+
+cat("\nResponse\n")
+print(table(dados$Response))
+
+```
+```{r}
+
+
+```
+
+Conforme observado, em todas as campanhas realizadas, o percentual de aceitação da campanha é muito inferior ao percentual de não aceitação, inclusive no caso da variável "Response". Esse desbalanceamento dos dados pode ocasionar problemas na previsão do modelo, visto que o modelo pode apresentar um erro maior na classificação da classe minoritária e, ainda assim, apresentar uma alta acurácia do modelo. 
+
+Dessa forma, é importante entender o efeito do falso positivo e do falso negativo para o cenário analisado. Como o objetivo da nossa previsão é decidir se compensa enviar ou não a sexta campanha de marketing para um cliente, então as consequências de uma classificação errada para o cliente são:
+
+- Falso negativo, que seria uma previsão errada de que um cliente não vai aceitar a campanha, é um custo de oportunidade.
+- Falso positivo, que seria uma previsão errada de que um cliente vai aceitar a campanha, implica no custo do envio da proposta de marketing.
+
+
+# Tratamento do deslabalanceamento de dados
+
+# Tentativa 1: 
+
+Oversampling: 
+
+Majority Weighted Minority Oversampling TEchnique
+
+
+```{r}
+#dados$Response <- as.factor(dados$Response)
+
+```
+
+```{r}
+#sapply(dados, class)
+
+
+```
+
+
+
+```{r}
+# instalar e carregar o pacote 'DMwR' que contém a função SMOTE
+# install.packages("DMwR")
+# instalar o pacote smotefamily
+#install.packages("smotefamily")
+#library(smotefamily)
+```
+
+```{r}
+
+# Aplicar SMOTE
+#dados_smote <- SMOTE(Response ~ ., dados, perc.over = 100*(1867/333 - 1))
+
+
+```
+
+## 2. Separação entre treino e teste
 
 ```{r}
 split <- initial_split(dados, prop = 0.7, strata = "Response")
@@ -207,7 +319,11 @@ Utilizaremos Tidy Models para os modelos que o comportam
 receita <- recipe(Response ~ ., treinamento) %>% # define a receita, com a variavel resposta e os dados de treinamento
   step_mutate(Response = as.factor(Response)) %>% 
   step_normalize(all_numeric())  #normaliza todas variaveis numericas
-   # transformando variável resposta em fator
+  #step_normalize(all_of(c("MntTotal", "MntRegularProds", "MntWines", 
+  #                                "MntFruits", "MntMeatProducts", "MntFishProducts", 
+  #                                "MntSweetProducts", "MntGoldProds", "NumDealsPurchases",
+  #                                "NumCatalogPurchases", "NumStorePurchases", "NumWebPurchases")))  # normaliza as variaveis não binárias com maior número de outliers
+# transformando variável resposta em fator
 
 ```
 
@@ -219,11 +335,9 @@ treinamento_proc <- bake(receita_prep, new_data = NULL) # obtem os dados de trei
 teste_proc <- bake(receita_prep, new_data = teste) # obtem os dados de teste processados
 ```
 
+## 3.1. Modelos Supervisionados
 
-
-## 2.1. Modelos Supervisionados
-
-# 2.1.1. Regressão Logística
+# 3.1.1. Regressão Logística
 
 Definindo modelo, engine e realizando o fit
 ```{r}
@@ -257,6 +371,7 @@ lasso <- logistic_reg(penalty = tune(), mixture = 1) %>% # define o modelo lasso
   set_engine("glmnet") %>% # define a engine do modelo
   set_mode("classification") # define que e'  problema de classificacao
 ```
+
 
 Validação Cruzada
 
@@ -390,13 +505,13 @@ fitted_rf <- rf_fit %>%
 
 ```{r}
 fitted <- fitted %>% 
-  bind_rows(fitted_rf) # empilha o tibble fitted_rf abaixo do fitted_lm
+  bind_rows(fitted) # empilha o tibble fitted_rf abaixo do fitted_lm
 
 head(fitted)
 tail(fitted)
 ```
 
-avaliar desempenho
+Avaliar desempenho
 
 Ajustando Hiperparâmetros
 
@@ -432,7 +547,7 @@ Plotando os resultados
 autoplot(rf_grid)
 ```
 
-Selecionando a melhor combinaçãod e hiperparametros e salvando na variável
+Selecionando a melhor combinação e hiperparametros e salvando na variável
 
 ```{r}
 rf_grid %>% 
@@ -464,11 +579,130 @@ fitted <- fitted %>%
 
 <font color=red> esse deve ser o último snipet após realizar a tabela de resultado de todos os modelos <font>
 
+
+Redes neurais
+
+```{r}
+
+# Preparando dados
+
+# Selecionando variáveis explicativas do treinamento e convertendo dados para matriz
+X_trn <- treinamento %>% 
+  select(-Response) %>% 
+  as.matrix()
+```
+
+```{r}
+# Selecionando variáveis explicativas do teste e convertendo dados para matriz
+X_tst <- teste %>% 
+  select(-Response) %>% 
+  as.matrix()
+```
+
+```{r}
+
+# Padroniza os dados de treinamento
+X_trn <- scale(X_trn)
+
+# Padroniza os dados de teste usando os mesmos parâmetros de centralização e escala dos dados de treinamento
+X_tst <- scale(X_tst,
+               center = attr(X_trn, "scaled:center"),
+               scale = attr(X_trn, "scaled:scale"))
+
+# Cria um modelo sequencial
+net <- keras_model_sequential() %>% 
+    layer_dense(units = 32, activation = "relu", input_shape = ncol(X_trn)) %>% # número de características de entrada
+    #layer_dropout(rate=0.4) %>%  
+    layer_dense(units = 16, activation = "relu") %>%
+    #layer_dropout(rate=0.3) %>%  
+    layer_dense(units = 8, activation = "relu") %>%
+    layer_dense(units = 1, activation = "sigmoid") 
+
+```
+
+```{r}
+library(tensorflow)
+library(keras)
+```
+
+
+
+```{r}
+# Modelo para classificação
+net <- compile(net, 
+               loss = "binary_crossentropy", 
+               optimizer = "adam", 
+               metrics = list(metric_recall())) 
+
+# Treino dwo modelo para classificação
+history_class <- fit(
+  net, X_trn, treinamento$Response, 
+  batch_size = 16, epochs = 20, 
+  validation_split = 0.2)
+
+```
+
+
+Avaliando o modelo
+
+```{r}
+# Fazendo previsões no conjunto de teste
+y_pred_prob <- predict(net, X_tst)
+
+# Convertendo as probabilidades de previsão para classificações binárias
+y_pred_class <- ifelse(y_pred_prob > 0.5, 1, 0)
+
+# Calculando o erro
+error_rate <- mean(y_pred_class != teste$Response)
+
+conf_mat <- confusionMatrix(data = as.factor(y_pred_class), reference = as.factor(teste$Response))
+
+# Calculando sensibilidade e especificidade diretamente
+sensitivity <- caret::sensitivity(as.factor(y_pred_class), as.factor(teste$Response))
+specificity <- caret::specificity(as.factor(y_pred_class), as.factor(teste$Response))
+accuracy <- sum(diag(conf_mat$table)) / sum(conf_mat$table)
+
+# Exibindo os resultados
+print(paste("Erro: ", error_rate))
+print(paste("Sensibilidade: ", sensitivity))
+print(paste("Especificidade: ", specificity))
+print(paste("Acurácia: ", accuracy))
+
+```
+```{r}
+conf_mat
+
+```
+
+
+
+
+
+
+
+
 Comparando desempenho dos modelos
 
 ```{r}
 fitted %>% 
   group_by(modelo) %>% 
   roc_auc(observado, .pred_1)
+
+```
+```{r}
+fitted %>%
+  mutate(
+    observado_bin = as.numeric(observado) - 1, # Converte o fator para numérico (0 e 1)
+    pred_bin = if_else(.pred_1 > 0.5, 1, 0)    # Cria previsões binárias
+  ) %>%
+  group_by(modelo) %>%
+  summarise(
+    auc = roc_auc(observado_bin, .pred_1)$.estimate,       # AUC-ROC
+    accuracy = accuracy(observado_bin, pred_bin)$.estimate, # Acurácia
+    sens = sens(observado_bin, pred_bin)$.estimate,         # Sensibilidade
+    spec = spec(observado_bin, pred_bin)$.estimate,         # Especificidade
+    ppv = ppv(observado_bin, pred_bin)$.estimate,           # Valor Preditivo Positivo
+    npv = npv(observado_bin, pred_bin)$.estimate            # Valor Preditivo Negativo
+  )
 
 ```
