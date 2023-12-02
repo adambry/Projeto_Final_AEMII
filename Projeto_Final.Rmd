@@ -67,6 +67,9 @@ Modelos:
 #install.packages("keras")
 #install.packages("imbalance")
 #install.packages("DMwR")
+#install.packages("Rtools")
+#install.packages( "Path/To/DMwR_0.4.1.tar.gz", repos=NULL, type="source" )
+#install.packages("caret")
 ```
 
 ```{r}
@@ -87,8 +90,9 @@ library (vip)
 library(keras)
 library(corrplot)
 library(imbalance)
-library(DMwR)
- #library(tensorflow) 
+library(DMwR2)
+library(tensorflow) 
+library(caret)
 ```
 
 # Importação de dados
@@ -677,32 +681,39 @@ conf_mat
 
 
 
-
-
-
-
 Comparando desempenho dos modelos
 
 ```{r}
-fitted %>% 
-  group_by(modelo) %>% 
-  roc_auc(observado, .pred_1)
 
-```
-```{r}
-fitted %>%
+
+fitfull <- fitted %>%
   mutate(
-    observado_bin = as.numeric(observado) - 1, # Converte o fator para numérico (0 e 1)
+    observado_bin = as.factor(as.numeric(observado) - 1),# Converte o fator para numérico (0 e 1)
+    pred_binf = as.factor(if_else(.pred_1 > 0.5, 1, 0)),
     pred_bin = if_else(.pred_1 > 0.5, 1, 0)    # Cria previsões binárias
   ) %>%
-  group_by(modelo) %>%
-  summarise(
-    auc = roc_auc(observado_bin, .pred_1)$.estimate,       # AUC-ROC
-    accuracy = accuracy(observado_bin, pred_bin)$.estimate, # Acurácia
-    sens = sens(observado_bin, pred_bin)$.estimate,         # Sensibilidade
-    spec = spec(observado_bin, pred_bin)$.estimate,         # Especificidade
-    ppv = ppv(observado_bin, pred_bin)$.estimate,           # Valor Preditivo Positivo
-    npv = npv(observado_bin, pred_bin)$.estimate            # Valor Preditivo Negativo
-  )
+  group_by(modelo)
+
+
+sensib <- fitfull%>% sens(observado_bin, pred_binf) %>% select(.estimate) %>% 
+  pull(.estimate)
+
+sensiv <- fitfull %>% spec(observado_bin, pred_binf) %>% select(.estimate)%>% 
+  pull(.estimate)
+posit <- fitfull  %>% ppv(observado_bin, pred_binf) %>% select(.estimate)%>% 
+  pull(.estimate)
+negativ <- fitfull  %>% npv(observado_bin, pred_binf) %>% select(.estimate)%>% 
+  pull(.estimate)
+
+fitfull %>% roc_auc(observado_bin, .pred_1)  %>% 
+  mutate(auc = .estimate,
+    sensibilidade= sensib,
+        sensitividade = sensiv,
+       verdposit = posit,
+       verdneg = negativ) %>% select(modelo, auc, sensibilidade, sensitividade, verdposit, verdneg)
+ 
 
 ```
+
+
+
