@@ -87,12 +87,12 @@ library (glmnet)
 library (ranger)
 library (parsnip)
 library (vip)
-library(keras)
-library(corrplot)
-library(imbalance)
-library(DMwR2)
-library(tensorflow) 
-library(caret)
+library (keras)
+library (corrplot)
+library (imbalance)
+library (tensorflow) 
+library (caret)
+library(rlang)
 ```
 
 # Importação de dados
@@ -255,8 +255,13 @@ cat("\nResponse\n")
 print(table(dados$Response))
 
 ```
-```{r}
 
+
+```{r}
+# Análise da variável 'Response'
+ggplot(dados, aes(x = Response)) +
+  geom_bar() +
+  labs(title = 'Distribuição da Variável Response', x = 'Response', y = 'Contagem')
 
 ```
 
@@ -268,43 +273,81 @@ Dessa forma, é importante entender o efeito do falso positivo e do falso negati
 - Falso positivo, que seria uma previsão errada de que um cliente vai aceitar a campanha, implica no custo do envio da proposta de marketing.
 
 
-# Tratamento do deslabalanceamento de dados
+```{r}
 
-# Tentativa 1: 
+# Análises bivariadas com variáveis numéricas
+colunas_selecionadas <- c('Income', 'Recency', 'MntWines', 'MntMeatProducts', 'MntFishProducts', 'MntSweetProducts')
 
-Oversampling: 
+for (col in colunas_selecionadas) {
+  p <- ggplot(dados, aes(x = as.factor(Response), y = !!sym(col))) +
+    geom_boxplot() +
+    labs(title = paste('Relação entre', col, 'e Response'))
+  print(p)
+}
+```
 
-Majority Weighted Minority Oversampling TEchnique
+1. Income (Renda) vs Response:
+
+2. Recency (Recência) vs Response: 
+
+3. MntWines (Gastos com Vinhos) vs Response: 
+
+4. MntMeatProducts (Gastos com Produtos de Carne) vs Response: 
+
+5. MntFishProducts (Gastos com Produtos de Peixe) vs Response: 
+
+6. MntSweetProducts (Gastos com Produtos Doces) vs Response: 
+
 
 
 ```{r}
-#dados$Response <- as.factor(dados$Response)
+
+# Preparando os dados para análise proporcional de variáveis dummy
+calcular_proporcao <- function(data, vars) {
+  data %>%
+    pivot_longer(cols = all_of(vars)) %>%
+    group_by(name) %>%
+    summarise(Response_0 = sum(value == 0, na.rm = TRUE),
+              Response_1 = sum(value == 1, na.rm = TRUE)) %>%
+    mutate(Total = Response_0 + Response_1,
+           Prop_Aceitou = Response_1 / Total,
+           Prop_NaoAceitou = Response_0 / Total) %>%
+    select(name, Prop_Aceitou, Prop_NaoAceitou) %>%
+    pivot_longer(cols = c("Prop_Aceitou", "Prop_NaoAceitou"), names_to = "Response", values_to = "Proporcao")
+}
+
+# Estado Civil
+marital_proportions <- calcular_proporcao(dados, marital_vars)
+ggplot(marital_proportions, aes(x = name, y = Proporcao, fill = Response)) +
+  geom_bar(stat = 'identity', position = position_dodge()) +
+  labs(title = 'Proporção de Aceitação da Campanha por Estado Civil', x = 'Estado Civil', y = 'Proporção')
+
+# Nível de Educação
+education_proportions <- calcular_proporcao(dados, education_vars)
+ggplot(education_proportions, aes(x = name, y = Proporcao, fill = Response)) +
+  geom_bar(stat = 'identity', position = position_dodge()) +
+  labs(title = 'Proporção de Aceitação da Campanha por Nível de Educação', x = 'Nível de Educação', y = 'Proporção')
+
 
 ```
-
 ```{r}
-#sapply(dados, class)
 
+# Convertendo 'Response' para fator
+dados$Response <- as.factor(dados$Response)
 
-```
+# Gráficos de dispersão
+par_variaveis <- list(c('MntMeatProducts', 'MntFishProducts'), c('MntGoldProds', 'MntSweetProducts'), c('Recency', 'MntWines'))
+for (par in par_variaveis) {
+  p <- ggplot(dados, aes(x = !!sym(pair[1]), y = !!sym(pair[2]), color = Response)) +
+    geom_point() +
+    labs(title = paste('Relação entre', pair[1], 'e', pair[2], 'por Response'), x = pair[1], y = pair[2])
+  print(p)
+}
 
-
-
-```{r}
-# instalar e carregar o pacote 'DMwR' que contém a função SMOTE
-# install.packages("DMwR")
-# instalar o pacote smotefamily
-#install.packages("smotefamily")
-#library(smotefamily)
-```
-
-```{r}
-
-# Aplicar SMOTE
-#dados_smote <- SMOTE(Response ~ ., dados, perc.over = 100*(1867/333 - 1))
 
 
 ```
+
 
 ## 2. Separação entre treino e teste
 
@@ -322,11 +365,11 @@ Utilizaremos Tidy Models para os modelos que o comportam
 ```{r}
 receita <- recipe(Response ~ ., treinamento) %>% # define a receita, com a variavel resposta e os dados de treinamento
   step_mutate(Response = as.factor(Response)) %>% 
-  step_normalize(all_numeric())  #normaliza todas variaveis numericas
-  #step_normalize(all_of(c("MntTotal", "MntRegularProds", "MntWines", 
-  #                                "MntFruits", "MntMeatProducts", "MntFishProducts", 
-  #                                "MntSweetProducts", "MntGoldProds", "NumDealsPurchases",
-  #                                "NumCatalogPurchases", "NumStorePurchases", "NumWebPurchases")))  # normaliza as variaveis não binárias com maior número de outliers
+  #step_normalize(all_numeric())  #normaliza todas variaveis numericas
+  step_normalize(all_of(c("MntTotal", "MntRegularProds", "MntWines", 
+                                  "MntFruits", "MntMeatProducts", "MntFishProducts", 
+                                  "MntSweetProducts", "MntGoldProds", "NumDealsPurchases",
+                                  "NumCatalogPurchases", "NumStorePurchases", "NumWebPurchases")))  # normaliza as variaveis não binárias com maior número de outliers
 # transformando variável resposta em fator
 
 ```
@@ -395,6 +438,7 @@ lambda_tune <- tune_grid(lasso, # especificacao do modelo
 autoplot(lambda_tune) # plota os resultados
 
 ```
+
 
 ```{r}
 lambda_tune %>% 
@@ -583,6 +627,136 @@ fitted <- fitted %>%
 
 <font color=red> esse deve ser o último snipet após realizar a tabela de resultado de todos os modelos <font>
 
+Boosting
+
+```{r}
+# Definição do modelo de boosting
+boost <- boost_tree(mode = "classification") %>%
+  set_engine("xgboost") %>% #define o pacote que vai fazero ajuste do modelo
+  set_mode("classification") # define que é um modelo de classificação
+
+boost
+```
+```{r}
+# Ajuste do modelo aos dados de treinamento processados
+boost_fit <- boost %>% 
+  fit(Response ~ ., data = treinamento_proc) # ajuste do modelo
+
+```
+```{r}
+# Importância das variáveis
+vip(boost_fit)
+
+```
+
+
+```{r}
+# Predição para os dados de teste
+fitted_boost <- boost_fit %>% 
+  predict(new_data = teste_proc) %>%
+  mutate(observado = teste_proc$Response,
+         modelo = "boosting")
+
+# Empilhando os resultados das predições
+#fitted <- fitted_rf %>% 
+#bind_rows(fitted_boost)
+
+avaliacao_sens <- fitted_boost %>% 
+  group_by(modelo) %>%
+  yardstick::sens(observado, .pred_class)
+
+avaliacao_spec <- fitted_boost %>% 
+  group_by(modelo) %>%
+  yardstick::spec(observado, .pred_class)
+
+avaliacao <- bind_cols(avaliacao_sens, avaliacao_spec)
+avaliacao
+
+```
+
+
+
+```{r}
+# Tune - Ajuste de hiperparâmetros
+
+# Modelo XGBoost com hiperparâmetros a serem ajustados
+boost2 <- boost_tree(
+    trees = tune(),               
+    learn_rate = tune(),          
+    tree_depth = tune()
+) %>% 
+  set_engine("xgboost") %>% 
+  set_mode("classification")
+boost2
+
+```
+```{r}
+library(dials)
+```
+```{r}
+
+# Validação cruzada para ajuste de hiperparâmetros
+set.seed(123)
+cv_split <- vfold_cv(treinamento, v = 10)  # validação cruzada
+
+registerDoParallel() # Parallelize the process
+
+# Exemplo de definição de um grid de hiperparâmetros
+hyper_grid <- grid_regular(
+  trees(),
+  tree_depth(),
+  learn_rate(),
+  levels = 5
+)
+
+# Para tunar os hiperparâmetros
+boost_grid <- tune_grid(
+  boost2,
+  receita,
+  resamples = cv_split,
+  grid = hyper_grid,  # número de combinações de parâmetros
+  metrics = metric_set(yardstick::accuracy, yardstick::sens, yardstick::spec)  # métricas para avaliação
+)
+
+autoplot(boost_grid) # Visualize the results
+
+```
+```{r}
+
+boost_grid %>% 
+  collect_metrics()
+
+# Melhor conjunto de parâmetros
+best <- boost_grid %>% 
+  select_best("spec")  # seleciona o melhor modelo baseado no rmse
+
+best
+
+```
+
+```{r}
+# Finalizando o modelo com os melhores parâmetros
+boost_fit_final <- finalize_model(boost2, parameters = best) %>%
+  fit(Response ~ ., data = treinamento_proc)
+
+# Predições com o modelo final
+fitted_boost_final <- boost_fit_final %>%
+  predict(new_data = teste_proc) %>%
+  mutate(observado = teste_proc$Response,
+         modelo = "boosting - tune")
+```
+
+```{r}
+
+
+# Avaliando o desempenho dos modelos
+fitted %>% 
+  group_by(modelo) %>%
+  metrics(truth = observado, estimate = .pred)
+```
+
+
+
 
 Redes neurais
 
@@ -591,42 +765,63 @@ Redes neurais
 # Preparando dados
 
 # Selecionando variáveis explicativas do treinamento e convertendo dados para matriz
-X_trn <- treinamento %>% 
+#X_trn <- treinamento %>% 
+#  select(-Response) %>% 
+#  as.matrix()
+
+X_trn <-treinamento %>%
+  mutate(across(c("MntTotal", "MntRegularProds", "MntWines", 
+                                  "MntFruits", "MntMeatProducts", "MntFishProducts", 
+                                  "MntSweetProducts", "MntGoldProds", "NumDealsPurchases",
+                                  "NumCatalogPurchases", "NumStorePurchases", "NumWebPurchases"), scale)) %>% 
+  select(c("MntTotal", "MntRegularProds", "MntWines", 
+                                  "MntFruits", "MntMeatProducts", "MntFishProducts", 
+                                  "MntSweetProducts", "MntGoldProds", "NumDealsPurchases",
+                                  "NumCatalogPurchases", "NumStorePurchases", "NumWebPurchases", "Response")) %>% 
   select(-Response) %>% 
   as.matrix()
 ```
 
 ```{r}
 # Selecionando variáveis explicativas do teste e convertendo dados para matriz
-X_tst <- teste %>% 
-  select(-Response) %>% 
-  as.matrix()
+#X_tst <- teste %>% 
+#  select(-Response) %>% 
+#  as.matrix()
 ```
 
 ```{r}
 
 # Padroniza os dados de treinamento
-X_trn <- scale(X_trn)
+
+X_tst <-teste %>%
+  mutate(across(c("MntTotal", "MntRegularProds", "MntWines", 
+                                  "MntFruits", "MntMeatProducts", "MntFishProducts", 
+                                  "MntSweetProducts", "MntGoldProds", "NumDealsPurchases",
+                                  "NumCatalogPurchases", "NumStorePurchases", "NumWebPurchases"), scale)) %>% 
+  select(c("MntTotal", "MntRegularProds", "MntWines", 
+                                  "MntFruits", "MntMeatProducts", "MntFishProducts", 
+                                  "MntSweetProducts", "MntGoldProds", "NumDealsPurchases",
+                                  "NumCatalogPurchases", "NumStorePurchases", "NumWebPurchases", "Response")) %>% 
+  select(-Response) %>% 
+  as.matrix()
+
 
 # Padroniza os dados de teste usando os mesmos parâmetros de centralização e escala dos dados de treinamento
-X_tst <- scale(X_tst,
-               center = attr(X_trn, "scaled:center"),
-               scale = attr(X_trn, "scaled:scale"))
+#X_tst <- scale(X_tst,
+#               center = attr(X_trn, "scaled:center"),
+#               scale = attr(X_trn, "scaled:scale"))
 
 # Cria um modelo sequencial
 net <- keras_model_sequential() %>% 
-    layer_dense(units = 32, activation = "relu", input_shape = ncol(X_trn)) %>% # número de características de entrada
-    #layer_dropout(rate=0.4) %>%  
-    layer_dense(units = 16, activation = "relu") %>%
+    layer_dense(units = 128, activation = "relu", input_shape = ncol(X_trn)) %>% # número de características de entrada
+    layer_dropout(rate=0.2) %>%  
+    layer_dense(units = 64, activation = "relu") %>%
+    layer_dropout(rate=0.1) %>% 
+    layer_dense(units = 32, activation = "relu") %>%
     #layer_dropout(rate=0.3) %>%  
     layer_dense(units = 8, activation = "relu") %>%
     layer_dense(units = 1, activation = "sigmoid") 
 
-```
-
-```{r}
-library(tensorflow)
-library(keras)
 ```
 
 
@@ -635,14 +830,17 @@ library(keras)
 # Modelo para classificação
 net <- compile(net, 
                loss = "binary_crossentropy", 
-               optimizer = "adam", 
-               metrics = list(metric_recall())) 
+               optimizer = "rmsprop", 
+               metrics = c("Accuracy"))
+
 
 # Treino dwo modelo para classificação
 history_class <- fit(
   net, X_trn, treinamento$Response, 
   batch_size = 16, epochs = 20, 
   validation_split = 0.2)
+
+
 
 ```
 
@@ -654,7 +852,7 @@ Avaliando o modelo
 y_pred_prob <- predict(net, X_tst)
 
 # Convertendo as probabilidades de previsão para classificações binárias
-y_pred_class <- ifelse(y_pred_prob > 0.5, 1, 0)
+y_pred_class <- ifelse(y_pred_prob > min(y_pred_prob), 1, 0)
 
 # Calculando o erro
 error_rate <- mean(y_pred_class != teste$Response)
