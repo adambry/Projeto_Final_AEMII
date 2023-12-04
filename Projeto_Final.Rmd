@@ -210,7 +210,6 @@ for (coluna in colunas_nao_binarias) {
 }
 ```
 
-coloquei comentado porque não rodou aqui ( tiago )
 
 ```{r}
 # Configuração de layout para exibir 4x5 boxplots
@@ -277,6 +276,18 @@ print(table(dados$Response))
 
 ```
 
+
+verificando quantos clientes aderiram a pelo menos uma campanha
+```{r}
+adesao_campanhas <- dados %>% 
+  filter(AcceptedCmp1 == 1 | AcceptedCmp2 == 1 | AcceptedCmp3 == 1 | AcceptedCmp4 == 1 | AcceptedCmp5 == 1)
+```
+
+```{r}
+nrow(adesao_campanhas)
+```
+
+
 #### 3.1.1.2. Variável Resposta
 
 ```{r}
@@ -332,6 +343,8 @@ aux <- aux[, !(names(aux) %in% one_hot_cols)]
 
 #### 3.1.2.3 Tabela de frequência
 
+marital_status
+
 ```{r}
 tabela_frequencia_absoluta <- table(aux$marital_status)
 
@@ -342,14 +355,32 @@ tabela_frequencia <- cbind('Frequencia Absoluta' = tabela_frequencia_absoluta, '
 print(tabela_frequencia)
 
 ```
+```{r}
+barplot(tabela_frequencia_absoluta, main = "Distribuição de marital_status", xlab = "marital_status", ylab = "Frequência", cex.names = 0.6)
+```
 
 ```{r}
-barplot(tabela_frequencia_absoluta, main = "Distribuição de marital_status", xlab = "marital_status", ylab = "Frequência")
+tabela_frequencia_absoluta <- table(aux$education_level)
+
+tabela_frequencia_relativa <- prop.table(tabela_frequencia_absoluta)*100
+
+tabela_frequencia <- cbind('Frequencia Absoluta' = tabela_frequencia_absoluta, 'Frequencia Relativa' = tabela_frequencia_relativa)
+
+print(tabela_frequencia)
+
 ```
+
+```{r}
+barplot(tabela_frequencia_absoluta, main = "Distribuição de education_level", xlab = "education_level", ylab = "Frequência",cex.names = 0.6)
+```
+
+
 
 ## 3.2. Análise Bivariada
 
 ### 3.2.1. Variáveis Numéricas
+
+
 
 ```{r}
 colunas_selecionadas <- c('Income', 'Recency', 'MntWines', 'MntMeatProducts', 'MntFishProducts', 'MntSweetProducts')
@@ -382,10 +413,192 @@ for (par in par_variaveis) {
 ```
 
 
+### Valor gasto por tipo de produtos por clientes que aderiram a somente uma campanha
 
-## 3.3. Análise Multivariada
+```{r}
+adesao_apenas_cmp1 <- dados %>% 
+  filter (dados$AcceptedCmp1 == 1 & dados$AcceptedCmp2 == 0 & dados$AcceptedCmp3 == 0 & dados$AcceptedCmp4 == 0 & dados$AcceptedCmp5 == 0 ) %>% 
+  select(-MntTotal)
+```
 
-## <font color = red> fazer análises que compreenderm mais de 2 variáveis e gráfico de correlação <font>
+Verificando quantidade de clientes que só aderiram a campanha 1
+```{r}
+nrow(adesao_apenas_cmp1)
+```
+
+```{r}
+
+# Calcular a razão para todos os produtos
+razoes <- dados %>%
+  select(-MntTotal) %>% 
+  summarise(across(starts_with("Mnt"), sum)) / 
+  adesao_apenas_cmp1 %>% 
+  summarise(across(starts_with("Mnt"), sum))
+
+# Transformar os dados para o formato longo
+razoes_long <- razoes %>%
+  pivot_longer(cols = starts_with("Mnt"), names_to = "Produto", values_to = "Razao")
+
+# Criar um gráfico de barras
+ggplot(razoes_long, aes(x = Produto, y = Razao, fill = Produto)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Razão do valor gasto por clientes exclusivos da 1ª campanha pelo total",
+       x = "Produto",
+       y = "Razão") +
+  theme_minimal() + 
+  theme(axis.text.x = element_blank())
+```
+
+
+#### 3.3.1.2
+```{r}
+adesao_apenas_cmp2 <- dados %>% 
+  filter (dados$AcceptedCmp1 == 0 & dados$AcceptedCmp2 == 1 & dados$AcceptedCmp3 == 0 & dados$AcceptedCmp4 == 0 & dados$AcceptedCmp5 == 0 ) %>% 
+  select(-MntTotal)
+```
+
+Verificando quantidade de clientes que só aderiram a campanha 2
+```{r}
+nrow(adesao_apenas_cmp2)
+```
+
+```{r}
+
+# Calcular a razão para todos os produtos
+razoes <- dados %>%
+  select(-MntTotal) %>% 
+  summarise(across(starts_with("Mnt"), sum)) / 
+  adesao_apenas_cmp2 %>% 
+  summarise(across(starts_with("Mnt"), sum))
+
+# Transformar os dados para o formato longo
+razoes_long <- razoes %>%
+  pivot_longer(cols = starts_with("Mnt"), names_to = "Produto", values_to = "Razao")
+
+# Criar um gráfico de barras
+ggplot(razoes_long, aes(x = Produto, y = Razao, fill = Produto)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Razão do valor gasto por clientes exclusivos da 2ª campanha pelo total",
+       x = "Produto",
+       y = "Razão") +
+  theme_minimal() + 
+  theme(axis.text.x = element_blank())
+```
+
+
+#### 3.3.1.3.
+
+```{r}
+adesao_apenas_cmp3 <- dados %>% 
+  filter (dados$AcceptedCmp1 == 0 & dados$AcceptedCmp2 == 0 & dados$AcceptedCmp3 == 1 & dados$AcceptedCmp4 == 0 & dados$AcceptedCmp5 == 0 ) %>% 
+  select(-MntTotal)
+```
+
+Verificando quantidade de clientes que só aderiram a campanha 3
+```{r}
+nrow(adesao_apenas_cmp3)
+```
+
+```{r}
+
+# Calcular a razão para todos os produtos
+razoes <- dados %>%
+  select(-MntTotal) %>% 
+  summarise(across(starts_with("Mnt"), sum)) / 
+  adesao_apenas_cmp3 %>% 
+  summarise(across(starts_with("Mnt"), sum))
+
+# Transformar os dados para o formato longo
+razoes_long <- razoes %>%
+  pivot_longer(cols = starts_with("Mnt"), names_to = "Produto", values_to = "Razao")
+
+# Criar um gráfico de barras
+ggplot(razoes_long, aes(x = Produto, y = Razao, fill = Produto)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Razão do valor gasto por clientes exclusivos da 3ª campanha pelo total",
+       x = "Produto",
+       y = "Razão") +
+  theme_minimal() + 
+  theme(axis.text.x = element_blank())
+```
+
+
+#### 3.3.1.4.
+```{r}
+adesao_apenas_cmp4 <- dados %>% 
+  filter (dados$AcceptedCmp1 == 0 & dados$AcceptedCmp2 == 0 & dados$AcceptedCmp3 == 0 & dados$AcceptedCmp4 == 1 & dados$AcceptedCmp5 == 0 ) %>% 
+  select(-MntTotal)
+```
+
+Verificando quantidade de clientes que só aderiram a campanha 4
+```{r}
+nrow(adesao_apenas_cmp4)
+```
+
+
+```{r}
+
+# Calcular a razão para todos os produtos
+razoes <- dados %>%
+  select(-MntTotal) %>%
+  summarise(across(starts_with("Mnt"), sum)) / 
+  adesao_apenas_cmp4 %>%
+  summarise(across(starts_with("Mnt"), sum))
+
+# Transformar os dados para o formato longo
+razoes_long <- razoes %>%
+  pivot_longer(cols = starts_with("Mnt"), names_to = "Produto", values_to = "Razao")
+
+# Criar um gráfico de barras
+ggplot(razoes_long, aes(x = Produto, y = Razao, fill = Produto)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Razão do valor gasto por clientes exclusivos da 4ª campanha pelo total",
+       x = "Produto",
+       y = "Razão") +
+  theme_minimal() + 
+  theme(axis.text.x = element_blank())
+
+```
+
+
+
+#### 3.3.1.5.
+```{r}
+adesao_apenas_cmp5 <- dados %>% 
+  filter (dados$AcceptedCmp1 == 0 & dados$AcceptedCmp2 == 0 & dados$AcceptedCmp3 == 0 & dados$AcceptedCmp4 == 0 & dados$AcceptedCmp5 == 1 ) %>% 
+  select(-MntTotal)
+```
+
+Verificando quantidade de clientes que só aderiram a campanha 5
+```{r}
+nrow(adesao_apenas_cmp5)
+```
+
+
+```{r}
+
+# Calcular a razão para todos os produtos
+razoes <- dados %>%
+  select(-MntTotal) %>%
+  summarise(across(starts_with("Mnt"), sum)) / 
+  adesao_apenas_cmp5 %>%
+  summarise(across(starts_with("Mnt"), sum))
+
+# Transformar os dados para o formato longo
+razoes_long <- razoes %>%
+  pivot_longer(cols = starts_with("Mnt"), names_to = "Produto", values_to = "Razao")
+
+# Criar um gráfico de barras
+ggplot(razoes_long, aes(x = Produto, y = Razao, fill = Produto)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Razão do valor gasto por clientes exclusivos da 5ª campanha pelo total",
+       x = "Produto",
+       y = "Razão") +
+  theme_minimal() + 
+  theme(axis.text.x = element_blank())
+
+```
+
 
 ## 2. Separação entre treino e teste
 
@@ -403,7 +616,6 @@ Utilizaremos Tidy Models para os modelos que o comportam
 ```{r}
 receita <- recipe(Response ~ ., treinamento) %>% # define a receita, com a variavel resposta e os dados de treinamento
   step_mutate(Response = as.factor(Response)) %>% 
-  #step_normalize(all_numeric())  #normaliza todas variaveis numericas
   step_normalize(all_of(c("MntTotal", "MntRegularProds", "MntWines", 
                                   "MntFruits", "MntMeatProducts", "MntFishProducts", 
                                   "MntSweetProducts", "MntGoldProds", "NumDealsPurchases",
@@ -471,21 +683,10 @@ fitted_glm <- fit_glm %>%
 ```
 
 
-
-
-
-```{r}
-#fitted_glm <- fit_glm %>% 
-#  predict(new_data = teste_proc, type = "prob") %>% # realiza predicao para os dados de teste
-#  mutate(observado = teste_proc$Response, # cria uma coluna com o valor observado de default
-#         modelo = "logistica") # cria uma coluna para indicar qual o modelo ajustado
-
-#head(fitted) # mostra as 6 primeiras linhas do tibble criado
-```
 ```{r}
 # Calculando as métricas
 acc_glm <- accuracy(fitted_glm, truth = observado_bin, estimate = pred_bin, event_level = "second")
-#auc_glm <- roc_auc(fitted_glm, truth = observado_bin, .pred_1)
+auc_glm <- roc_auc(fitted_glm, truth = observado_bin, .pred_1)
 sens_glm <- sens(fitted_glm, truth = observado_bin, estimate = pred_bin, event_level = "second")
 spec_glm <- spec(fitted_glm, truth = observado_bin, estimate = pred_bin, event_level = "second")
 ppv_glm <- ppv(fitted_glm, truth = observado_bin, estimate = pred_bin, event_level = "second")
@@ -499,7 +700,7 @@ resultados_modelos <- resultados_modelos %>%
   bind_rows(tibble(
     modelo = "Regressão Logística",
     acuracia = acc_glm$.estimate,
-    #auc = auc_glm$.estimate,
+    auc = auc_glm$.estimate,
     sensibilidade = sens_glm$.estimate,
     sensitividade = spec_glm$.estimate,
     verdposit = ppv_glm$.estimate,
@@ -508,7 +709,6 @@ resultados_modelos <- resultados_modelos %>%
 resultados_modelos
 ```
 ```{r}
-# Supondo que 'fitted_glm' seja o dataframe com suas previsões e observações
 confusion_matrix <- confusionMatrix(data = fitted_glm$pred_bin, reference = fitted_glm$observado_bin, positive = "1")
 
 # Imprimindo a matriz de confusão
@@ -575,6 +775,7 @@ ppv_lasso <- ppv(fitted_lasso, truth = observado_bin, estimate = pred_bin, event
 npv_lasso <- npv(fitted_lasso, truth = observado_bin, estimate = pred_bin, event_level = "second")
 
 ```
+
 ```{r}
 # Adicionando os resultados do LASSO ao dataframe de resultados
 resultados_modelos <- resultados_modelos %>% 
@@ -703,14 +904,6 @@ fitted_rf <- rf_fit %>%
          modelo = "random forest")
 ```
 
-
-```{r}
-#fitted <- fitted %>% 
-#  bind_rows(fitted) # empilha o tibble fitted_rf abaixo do fitted_lm
-
-#head(fitted)
-#tail(fitted)
-```
 
 Avaliar desempenho
 
@@ -1025,979 +1218,6 @@ history_class <- fit(
   net, X_trn, treinamento$Response, 
   batch_size = 16, epochs = 20, 
   validation_split = 0.2)
-
-
-```
-
-Avaliando o modelo
-
-```{r}
-# Fazendo previsões no conjunto de teste
-y_pred_prob <- predict(net, X_tst)
-
-# Convertendo as probabilidades de previsão para classificações binárias
-y_pred_class <- ifelse(y_pred_prob > min(y_pred_prob), 1, 0)
-
-# Calculando o erro
-error_rate <- mean(y_pred_class != teste$Response)
-
-conf_mat <- confusionMatrix(data = as.factor(y_pred_class), reference = as.factor(teste$Response))
-
-# Calculando sensibilidade e especificidade diretamente
-sensitivity <- caret::sensitivity(as.factor(y_pred_class), as.factor(teste$Response))
-specificity <- caret::specificity(as.factor(y_pred_class), as.factor(teste$Response))
-accuracy <- sum(diag(conf_mat$table)) / sum(conf_mat$table)
-
-# Exibindo os resultados
-print(paste("Erro: ", error_rate))
-print(paste("Sensibilidade: ", sensitivity))
-print(paste("Especificidade: ", specificity))
-print(paste("Acurácia: ", accuracy))
-
-```
-
-```{r}
-conf_mat
-
-```
-
-Comparando desempenho dos modelos
-
-```{r}
-
-
-fitfull <- fitted %>%
-  mutate(
-    observado_bin = as.factor(as.numeric(observado) - 1),# Converte o fator para numérico (0 e 1)
-    pred_binf = as.factor(if_else(.pred_1 > 0.5, 1, 0)),
-    pred_bin = if_else(.pred_1 > 0.5, 1, 0)    # Cria previsões binárias
-  ) %>%
-  group_by(modelo)
-
-
-sensib <- fitfull%>% sens(observado_bin, pred_binf) %>% select(.estimate) %>% 
-  pull(.estimate)
-
-sensiv <- fitfull %>% spec(observado_bin, pred_binf) %>% select(.estimate)%>% 
-  pull(.estimate)
-posit <- fitfull  %>% ppv(observado_bin, pred_binf) %>% select(.estimate)%>% 
-  pull(.estimate)
-negativ <- fitfull  %>% npv(observado_bin, pred_binf) %>% select(.estimate)%>% 
-  pull(.estimate)
-
-fitfull %>% roc_auc(observado_bin, .pred_1)  %>% 
-  mutate(auc = .estimate,
-    sensibilidade= sensib,
-        sensitividade = sensiv,
-       verdposit = posit,
-       verdneg = negativ) %>% select(modelo, auc, sensibilidade, sensitividade, verdposit, verdneg)
- 
-
-```
-=======
----
-title: "Projeto Final AEM II"
-author: "André Dambry, Mainara Cardoso, Tiago Pardo"
-date: "`r Sys.Date()`"
-output: html_document
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-## Objetivo:
-
-### 1) Utilizar métodos de aprendizagem supervisionada (regressão ou classificação)
-
-### 2) Realização de análise de um problema não supervisionado
-
-## Base de dados:
-
-### Marketing Analytics
-
-<https://www.kaggle.com/datasets/jackdaoud/marketing-data/data?select=dictionary.png>
-
-A base de dados contém informações de 2206 clientes de uma empresa. Os dados são relacionados à:
-
--   Perfil dos clientes
-
--   Produtos
-
--   Campanhas bem / mau sucedidas
-
--   Performance do canal
-
-# Proposta de Valor
-
-Através dos modelos supervisionados, nossa proposta é dentificar chance de clientes aderirem às campanhas.
-
-Com isto feito, nossa proposta, através do método KMeans será realizar o agrupamento de clientes. Isso é útil para que a realização de segmentação de público em campanhas de marketing.
-
-## Modelos supervisionados:
-
-Tipo de Problema: Classificação
-
-Modelos:
-
--   Regressão Logística
-
--   Floresta Aleatória
-
--   Boosting
-
--   Lasso
-
--   Ridge
-
--   Rede Neural
-
-## Modelos não supervisionados:
-
--   KMeans
-
-# Bibliotecas
-
-```{r}
-#install.packages("summarytools")
-#install.packages("reticulate")
-#install.packages("keras")
-#install.packages("imbalance")
-#install.packages("DMwR")
-#install.packages("Rtools")
-#install.packages( "Path/To/DMwR_0.4.1.tar.gz", repos=NULL, type="source" )
-#install.packages("caret")
-```
-
-```{r}
-library (readr)
-library (dplyr)
-library (tidyr)
-library (tidyverse)
-library (skimr)
-library (ggplot2)
-library (summarytools)
-library (tidymodels)
-library (ISLR)
-library (doParallel)
-library (glmnet)
-library (ranger)
-library (parsnip)
-library (vip)
-library (keras)
-library (corrplot)
-library (imbalance)
-library (tensorflow) 
-library (caret)
-library (rlang)
-```
-
-# Importação de dados
-
-```{r}
-urlfile <- "https://raw.githubusercontent.com/nailson/ifood-data-business-analyst-test/master/ifood_df.csv"
-dados <- read_csv(url(urlfile))
-```
-
-# Geração de metadados
-
-```{r}
-# metadata <- dados  %>%
-#   lapply(type_sum) %>%
-#   as_tibble() %>%
-#   pivot_longer(cols = 1:ncol(dados),
-#                names_to = "Coluna",
-#                values_to = "Tipo") %>%
-#   inner_join(
-#     dados %>%
-#       summarise(across(everything(), ~sum(is.na(.)))) %>%
-#       pivot_longer(cols = 1:ncol(dados),
-#                    names_to = "Coluna",
-#                    values_to = "Total NA")
-#   )
-# 
-# metadata
-```
-
-# 1. Análise Descritiva
-
-```{r}
-summary(dados)
-```
-
-```{r}
-skim(dados)
-```
-
-## 1.1. Verificando ausência de valores
-
-```{r}
-colSums(is.na(dados))
-```
-
-A base de dados não possui valores ausentes.
-
-## 1.2. Verificando o tipo de dados de cada coluna.
-
-```{r}
-sapply(dados, class)
-```
-
-Observa-se que todos as colunas são do tipo numérica. Isso ocorre porque as variáveis categóricas, como estado civil (marital) e nível de educação (education), já estão convertidas para dummy.
-
-## 1.3. Verificando valores negativos.
-
-```{r}
-sapply(dados, function(x) sum(x < 0))
-
-```
-
-A variável "MntRegularProds", que representa os gastos com produtos regulares, é a única que apresenta valores negativos.
-
-## 1.4. Verificando colunas com valores únicos.
-
-```{r}
-col_valores_unicos <- sapply(dados, function(x) length(unique(x)) == 1)
-names(dados)[col_valores_unicos]
-```
-
-As colunas "Z_CostContact" e "Z_Revenue", que representam, respectivamente, o custo do contato e o valor da receita, possuem um único valor em todas as observações.
-
-Assim, pontos a serem destacados sobre a análise inicial dos dados.
-
-1.  Ausência de valores vazios.
-2.  Tipo dos dados estão corretos.
-3.  Variáveis categóricas estão previamente tratadas como dummies.
-4.  A coluna "MntRegularProds" possui valores negativos.
-5.  As colunas "Z_CostContact" e "Z_Revenue" possuem um único valor em todas as observações.
-
-## 1.5. Análise de outliers
-
-Para melhor funcionamento dos modelos, verificaremos a existência de outliers nas colunas com valores numéricos.
-
-Obs: Não consideramos colunas com valores numéricos binários ou que não façam sentido de terem seus outliers analisados.
-
-Verificando colunas com dados binários.
-
-```{r}
-colunas_binarias <- sapply(dados, function(x) length(unique(x)) == 2)
-names(dados)[colunas_binarias]
-```
-
-```{r}
-# Selecionar colunas não-binárias
-colunas_nao_binarias <- names(dados)[!colunas_binarias]
-
-# Cálculo de outliers
-
-for (coluna in colunas_nao_binarias) {
-  q1 <- quantile(dados[[coluna]], 0.25)
-  q3 <- quantile(dados[[coluna]], 0.75)
-  q95 <- quantile(dados[[coluna]], 0.95)
-  iqr <- q3 - q1
-  median <- median(dados[[coluna]])
-  outlier_limit <- median + 1.5 * iqr
-  # Count the number of values above the limit
-  outlier_count <- sum(dados[[coluna]] > outlier_limit)
-  cat(sprintf('%20s | median+1.5xiqr: %8.2f | 95quantile: %8.2f | outliers: %d\n', 
-              coluna, outlier_limit, q95, outlier_count))
-}
-```
-
-coloquei comentado porque não rodou aqui ( tiago )
-
-```{r}
-# Configuração de layout para exibir 4x5 boxplots
-par(mfrow = c(4, 5), mar = c(2, 2, 2, 2))
-
-#Plot dos boxplots
-for (coluna in colunas_nao_binarias) {
-  boxplot(dados[[coluna]], main = coluna, coluna = "lightblue", border = "black", notch = TRUE)
-}
-```
-
-Dados que temos outliers nos dados, faremos a normalização dos dados na etapa de utilização dos TidyModels para os modelos aplicados.
-
-# 2. Tratamento dos dados
-
-## 2.1 Limpeza
-
-Na análise realizada, indentificamos que a variável "MntRegularProds", que indica o valor das compras efetuadas na plataforma, possui 3 valores negativos. Considerando que os valores das compras não podem ser negativos por natureza e que o número de observações com essa característica é pequeno, optamos por remover esses dados da base.
-
-```{r}
-# filtrando valores negativos da base 
-dados <- dados %>%             
-  filter (dados$MntRegularProds > 0)
-```
-
-As colunas "Z_CostContact" e "Z_Revenue", que representam, respectivamente, o custo do contato e o valor da receita, possuem um único valor em todas as observações. Logo, essas colunas não contribuem com informações úteis para aprimorar a precisão dos modelos preditivos ou da segmentação dos clientes. Portanto, estas variáveis serão excluídas da base.
-
-```{r}
-col_rem <- c("Z_CostContact", "Z_Revenue")  
-dados <- dados %>% select(-one_of(col_rem))
-```
-
-```{r}
-dados
-```
-
-# 3. Análise Exploratória de Dados
-
-## 3.1. Análise Univariada
-
-### 3.1.1. Variáveis Numéricas
-
-#### 3.1.1.1. Variáveis de Campanhas de Marketing
-
-```{r}
-# Contagem de frequências para cada campanha
-cat("AcceptedCmp1\n")
-print(table(dados$AcceptedCmp1))
-
-cat("\nAcceptedCmp2\n")
-print(table(dados$AcceptedCmp2))
-
-cat("\nAcceptedCmp3\n")
-print(table(dados$AcceptedCmp3))
-
-cat("\nAcceptedCmp4\n")
-print(table(dados$AcceptedCmp4))
-
-cat("\nAcceptedCmp5\n")
-print(table(dados$AcceptedCmp5))
-
-cat("\nResponse\n")
-print(table(dados$Response))
-
-```
-
-#### 3.1.1.2. Variável Resposta
-
-```{r}
-# Análise da variável 'Response'
-ggplot(dados, aes(x = Response)) +
-  geom_bar() +
-  labs(title = 'Distribuição da Variável Response', x = 'Response', y = 'Contagem')
-
-```
-
-Conforme observado, em todas as campanhas realizadas, o percentual de aceitação da campanha é muito inferior ao percentual de não aceitação, inclusive no caso da variável "Response". Esse desbalanceamento dos dados pode ocasionar problemas na previsão do modelo, visto que o modelo pode apresentar um erro maior na classificação da classe minoritária e, ainda assim, apresentar uma alta acurácia do modelo.
-
-Dessa forma, é importante entender o efeito do falso positivo e do falso negativo para o cenário analisado. Como o objetivo da nossa previsão é decidir se compensa enviar ou não a sexta campanha de marketing para um cliente, então as consequências de uma classificação errada para o cliente são:
-
--   Falso negativo, que seria uma previsão errada de que um cliente não vai aceitar a campanha, é um custo de oportunidade.
--   Falso positivo, que seria uma previsão errada de que um cliente vai aceitar a campanha, implica no custo do envio da proposta de marketing.
-
-### 3.1.2. Variáveis Categóricas
-
-Como as variáveis categóricas estão no formato de one-hot encoding, vamos retorná-las para suas configurações originais para analisá-las.
-
-#### 3.1.2.1 Criando coluna maritial_status
-
-```{r}
-# Copiando a tabela original
-aux <- dados
-```
-
-```{r}
-one_hot_cols <- c("marital_Divorced", "marital_Married", "marital_Single", "marital_Together", "marital_Widow")
-
-aux$marital_status <- colnames(aux[one_hot_cols])[max.col(aux[one_hot_cols],"first")] 
-```
-
-```{r}
-#removendo colunas codificadas da base
-aux <- aux[, !(names(aux) %in% one_hot_cols)]
-
-```
-
-#### 3.1.2.2. Criando coluna Education_level
-
-```{r}
-one_hot_cols <- c("education_2n Cycle", "education_Basic", "education_Graduation", "education_Master", "education_PhD")
-
-aux$education_level <- colnames(aux[one_hot_cols])[max.col(aux[one_hot_cols],"first")] 
-```
-
-```{r}
-aux <- aux[, !(names(aux) %in% one_hot_cols)]
-
-```
-
-#### 3.1.2.3 Tabela de frequência
-
-```{r}
-tabela_frequencia_absoluta <- table(aux$marital_status)
-
-tabela_frequencia_relativa <- prop.table(tabela_frequencia_absoluta)*100
-
-tabela_frequencia <- cbind('Frequencia Absoluta' = tabela_frequencia_absoluta, 'Frequencia Relativa' = tabela_frequencia_relativa)
-
-print(tabela_frequencia)
-
-```
-
-```{r}
-barplot(tabela_frequencia_absoluta, main = "Distribuição de marital_status", xlab = "marital_status", ylab = "Frequência")
-```
-
-## 3.2. Análise Bivariada
-
-### 3.2.1. Variáveis Numéricas
-
-```{r}
-colunas_selecionadas <- c('Income', 'Recency', 'MntWines', 'MntMeatProducts', 'MntFishProducts', 'MntSweetProducts')
-
-for (col in colunas_selecionadas) {
-  p <- ggplot(dados, aes(x = as.factor(Response), y = !!sym(col))) +
-    geom_boxplot() +
-    labs(title = paste('Relação entre', col, 'e Response'))
-  print(p)
-}
-```
-
-<font color = red> não rodou. Error: object 'pair' not found <font>
-
-```{r}
-
-# Convertendo 'Response' para fator
-dados$Response <- as.factor(dados$Response)
-
-# Gráficos de dispersão
-par_variaveis <- list(c('MntMeatProducts', 'MntFishProducts'), c('MntGoldProds', 'MntSweetProducts'), c('Recency', 'MntWines'))
-for (par in par_variaveis) {
-  p <- ggplot(dados, aes(x = !!sym(pair[1]), y = !!sym(pair[2]), color = Response)) +
-    geom_point() +
-    labs(title = paste('Relação entre', pair[1], 'e', pair[2], 'por Response'), x = pair[1], y = pair[2])
-  print(p)
-}
-
-```
-
-### 3.2.2. Variáveis categóricas
-
-<font color = red> Não rodou. 'martial_vars' not found <font>
-
-```{r}
-
-# Preparando os dados para análise proporcional de variáveis dummy
-calcular_proporcao <- function(data, vars) {
-  data %>%
-    pivot_longer(cols = all_of(vars)) %>%
-    group_by(name) %>%
-    summarise(Response_0 = sum(value == 0, na.rm = TRUE),
-              Response_1 = sum(value == 1, na.rm = TRUE)) %>%
-    mutate(Total = Response_0 + Response_1,
-           Prop_Aceitou = Response_1 / Total,
-           Prop_NaoAceitou = Response_0 / Total) %>%
-    select(name, Prop_Aceitou, Prop_NaoAceitou) %>%
-    pivot_longer(cols = c("Prop_Aceitou", "Prop_NaoAceitou"), names_to = "Response", values_to = "Proporcao")
-}
-
-# Estado Civil
-marital_proportions <- calcular_proporcao(dados, marital_vars)
-ggplot(marital_proportions, aes(x = name, y = Proporcao, fill = Response)) +
-  geom_bar(stat = 'identity', position = position_dodge()) +
-  labs(title = 'Proporção de Aceitação da Campanha por Estado Civil', x = 'Estado Civil', y = 'Proporção')
-
-# Nível de Educação
-education_proportions <- calcular_proporcao(dados, education_vars)
-ggplot(education_proportions, aes(x = name, y = Proporcao, fill = Response)) +
-  geom_bar(stat = 'identity', position = position_dodge()) +
-  labs(title = 'Proporção de Aceitação da Campanha por Nível de Educação', x = 'Nível de Educação', y = 'Proporção')
-
-
-```
-
-## 3.3. Análise Multivariada
-
-## <font color = red> fazer análises que compreenderm mais de 2 variáveis e gráfico de correlação <font>
-
-## 2. Separação entre treino e teste
-
-```{r}
-split <- initial_split(dados, prop = 0.7, strata = "Response")
-
-treinamento <- training(split)
-teste <- testing(split)
-```
-
-# 3. Modelagem Estatística
-
-Utilizaremos Tidy Models para os modelos que o comportam
-
-```{r}
-receita <- recipe(Response ~ ., treinamento) %>% # define a receita, com a variavel resposta e os dados de treinamento
-  step_mutate(Response = as.factor(Response)) %>% 
-  #step_normalize(all_numeric())  #normaliza todas variaveis numericas
-  step_normalize(all_of(c("MntTotal", "MntRegularProds", "MntWines", 
-                                  "MntFruits", "MntMeatProducts", "MntFishProducts", 
-                                  "MntSweetProducts", "MntGoldProds", "NumDealsPurchases",
-                                  "NumCatalogPurchases", "NumStorePurchases", "NumWebPurchases")))  # normaliza as variaveis não binárias com maior número de outliers
-# transformando variável resposta em fator
-
-```
-
-```{r}
-receita_prep <- prep(receita) # prepara a receita definida acima
-
-treinamento_proc <- bake(receita_prep, new_data = NULL) # obtem os dados de treinamento processados
-
-teste_proc <- bake(receita_prep, new_data = teste) # obtem os dados de teste processados
-```
-
-## 3.1. Modelos Supervisionados
-
-### 3.1.1. Regressão Logística
-
-Definindo modelo, engine e realizando o fit
-
-```{r}
-fit_glm <- logistic_reg() %>% 
-  set_engine("glm") %>% 
-  set_mode("classification") %>% 
-  fit(Response ~ ., treinamento_proc) 
-
-
-tidy(fit_glm) # estimativas do modelo ajustado em formato tidy
-
-```
-
-Criando Tibble com resultado
-
-```{r}
-fitted <- fit_glm %>% 
-  predict(new_data = teste_proc, type = "prob") %>% # realiza predicao para os dados de teste
-  mutate(observado = teste_proc$Response, # cria uma coluna com o valor observado de default
-         modelo = "logistica") # cria uma coluna para indicar qual o modelo ajustado
-
-head(fitted) # mostra as 6 primeiras linhas do tibble criado
-```
-
-### 3.1.2. LASSO
-
-Criando o modelo
-
-```{r}
-lasso <- logistic_reg(penalty = tune(), mixture = 1) %>% # define o modelo lasso e o parametro a ser tunado (o lambda)
-  set_engine("glmnet") %>% # define a engine do modelo
-  set_mode("classification") # define que e'  problema de classificacao
-```
-
-Validação Cruzada
-
-```{r}
-set.seed(321)
-
-cv_split <- vfold_cv(treinamento, v = 10, strata = "Response")
-
-doParallel::registerDoParallel() # paraleliza os proximos comandos
-
-lambda_tune <- tune_grid(lasso, # especificacao do modelo
-                         receita,# a receita a ser aplicada a cada lote
-                         resamples = cv_split, # os lotes da validacao cruzada
-                         grid = 30,# quantas combinacoes de parametros vamos considerar
-                         metrics = metric_set(roc_auc, accuracy)) # metricas consideradas
-
-autoplot(lambda_tune) # plota os resultados
-
-```
-
-```{r}
-lambda_tune %>% 
-  collect_metrics() # obtem as metricas calculadas
-
-best <- lambda_tune %>% 
-  select_best("roc_auc") # seleciona a melhor combinacao de hiperparametros
-
-fit_lasso <- finalize_model(lasso, parameters = best) %>% # informa os valores de hiperparametros a serem considerados
-  fit(Response ~ .,data = treinamento_proc) # executa o modelo com os valores de hiperparametros definidos acima
-```
-
-```{r}
-fitted <- fitted %>% #      empilha as previsoes do lasso
-  bind_rows(fit_lasso %>% # os valores preditos pelo lasso
-              predict(new_data = teste_proc, type = "prob") %>% 
-              mutate(observado = teste_proc$Response, 
-                     modelo = "lasso"))
-
-head(fitted)
-tail(fitted)
-```
-
-### 3.1.3. Ridge
-
-Definindo o modelo, parãmetro de tunagem e engine
-
-```{r}
-ridge <- logistic_reg(penalty = tune(), mixture = 0) %>%
-  set_engine("glmnet") %>%
-  set_mode("classification") 
-```
-
-Validação Cruzada
-
-```{r}
-set.seed(321)
-
-cv_split <- vfold_cv(treinamento, v = 10, strata = "Response")
-
-doParallel::registerDoParallel() # paraleliza os proximos comandos
-
-lambda_tune <- tune_grid(ridge, # especificacao do modelo
-                         receita,# a receita a ser aplicada a cada lote
-                         resamples = cv_split, # os lotes da validacao cruzada
-                         grid = 30,# quantas combinacoes de parametros vamos considerar
-                         metrics = metric_set(roc_auc, accuracy)) # metricas consideradas
-
-autoplot(lambda_tune) # plota os resultados
-
-```
-
-```{r}
-lambda_tune %>% 
-  collect_metrics() # obtem as metricas calculadas
-
-best <- lambda_tune %>% 
-  select_best("roc_auc") # seleciona a melhor combinacao de hiperparametros
-
-fit_ridge <- finalize_model(ridge, parameters = best) %>% # informa os valores de hiperparametros a serem considerados
-  fit(Response ~ .,data = treinamento_proc) # executa o modelo com os valores de hiperparametros definidos acima
-
-fitted <- fitted %>% #      empilha as previsoes do lasso
-  bind_rows(fit_ridge %>% # os valores preditos pelo lasso
-              predict(new_data = teste_proc, type = "prob") %>% 
-              mutate(observado = teste_proc$Response, 
-                     modelo = "ridge"))
-
-head(fitted)
-tail(fitted)
-```
-
-### 3.1.4. Floresta Aleatória
-
-Definindo o modelo, cálculo de importância das variáveis e tipo de previsão
-
-```{r}
-
-rf <- rand_forest() %>%
-  set_engine("ranger",
-             importance = "permutation") %>%  
-  set_mode("classification")
-
-rf
-
-```
-
-Ajuste do modelo
-
-```{r}
-rf_fit <- rf %>% 
-  fit(Response ~ ., treinamento_proc)
-rf_fit
-```
-
-Verificando a importância das variaveis para o modelo
-
-```{r}
-vip(rf_fit)
-```
-
-Inserindo resultados na tabela
-
-```{r}
-fitted_rf <- rf_fit %>% 
-  predict(new_data = teste_proc, type = 'prob') %>% # realiza predicao para os dados de teste
-  mutate(observado = teste_proc$Response, # mesma estrutura do fitted_lm
-         modelo = "random forest")
-```
-
-```{r}
-fitted <- fitted %>% 
-  bind_rows(fitted) # empilha o tibble fitted_rf abaixo do fitted_lm
-
-head(fitted)
-tail(fitted)
-```
-
-Avaliar desempenho
-
-Ajustando Hiperparâmetros
-
-```{r}
-rf2 <- rand_forest(mtry = tune(),
-                   trees = tune(), # todos argumentos com tune() serao tunados a seguir  
-                   min_n = tune()) %>% 
-  set_engine("ranger") %>% #
-  set_mode("classification") 
-  
-rf2
-```
-
-Realizando Validação Cruzada
-
-```{r}
-set.seed(123)
-cv_split <- vfold_cv(treinamento, v = 10)
-
-registerDoParallel() # pararaleliza o processo
-
-# para tunar os parametros
-rf_grid <- tune_grid(rf2, # especificacao do modelo
-                     receita, # a receita a ser aplicada a cada lote
-                     resamples = cv_split, # os lotes da validacao cruzada
-                     grid = 10, # quantas combinacoes de parametros vamos considerar
-                     metrics = metric_set(roc_auc, accuracy))
-```
-
-Plotando os resultados
-
-```{r}
-autoplot(rf_grid)
-```
-
-Selecionando a melhor combinação e hiperparametros e salvando na variável
-
-```{r}
-rf_grid %>% 
-  collect_metrics() 
-
-best <- rf_grid %>% 
-  select_best("roc_auc")
-```
-
-Finalizando o modelo
-
-```{r}
-rf_fit2 <- finalize_model(rf2, parameters = best) %>% # informa os valores de hiperparametros a serem considerados
-  
-  fit(Response ~ ., treinamento_proc) # executa o modelo com os valores de hiperparametros definidos acima
-```
-
-Previsão para os dados de teste
-
-```{r}
-fitted_rf2 <- rf_fit2 %>% # faz previsao para os dados de teste
-  predict(new_data = teste_proc, type = 'prob') %>% 
-  mutate(observado = teste_proc$Response, 
-         modelo = "random forest - tune")
-
-fitted <- fitted %>%
-  bind_rows(fitted_rf2)
-```
-
-<font color=red> esse deve ser o último snipet após realizar a tabela de resultado de todos os modelos <font>
-
-Boosting
-
-```{r}
-# Definição do modelo de boosting
-boost <- boost_tree(mode = "classification") %>%
-  set_engine("xgboost") %>% #define o pacote que vai fazero ajuste do modelo
-  set_mode("classification") # define que é um modelo de classificação
-
-boost
-```
-
-```{r}
-# Ajuste do modelo aos dados de treinamento processados
-boost_fit <- boost %>% 
-  fit(Response ~ ., data = treinamento_proc) # ajuste do modelo
-
-```
-
-```{r}
-# Importância das variáveis
-vip(boost_fit)
-
-```
-
-```{r}
-# Predição para os dados de teste
-fitted_boost <- boost_fit %>% 
-  predict(new_data = teste_proc) %>%
-  mutate(observado = teste_proc$Response,
-         modelo = "boosting")
-
-# Empilhando os resultados das predições
-#fitted <- fitted_rf %>% 
-#bind_rows(fitted_boost)
-
-avaliacao_sens <- fitted_boost %>% 
-  group_by(modelo) %>%
-  yardstick::sens(observado, .pred_class)
-
-avaliacao_spec <- fitted_boost %>% 
-  group_by(modelo) %>%
-  yardstick::spec(observado, .pred_class)
-
-avaliacao <- bind_cols(avaliacao_sens, avaliacao_spec)
-avaliacao
-
-```
-
-```{r}
-# Tune - Ajuste de hiperparâmetros
-
-# Modelo XGBoost com hiperparâmetros a serem ajustados
-boost2 <- boost_tree(
-    trees = tune(),               
-    learn_rate = tune(),          
-    tree_depth = tune()
-) %>% 
-  set_engine("xgboost") %>% 
-  set_mode("classification")
-boost2
-
-```
-
-```{r}
-library(dials)
-```
-
-```{r}
-
-# Validação cruzada para ajuste de hiperparâmetros
-set.seed(123)
-cv_split <- vfold_cv(treinamento, v = 10)  # validação cruzada
-
-registerDoParallel() # Parallelize the process
-
-# Exemplo de definição de um grid de hiperparâmetros
-hyper_grid <- grid_regular(
-  trees(),
-  tree_depth(),
-  learn_rate(),
-  levels = 5
-)
-
-# Para tunar os hiperparâmetros
-boost_grid <- tune_grid(
-  boost2,
-  receita,
-  resamples = cv_split,
-  grid = hyper_grid,  # número de combinações de parâmetros
-  metrics = metric_set(yardstick::accuracy, yardstick::sens, yardstick::spec)  # métricas para avaliação
-)
-
-autoplot(boost_grid) # Visualize the results
-
-```
-
-```{r}
-
-boost_grid %>% 
-  collect_metrics()
-
-# Melhor conjunto de parâmetros
-best <- boost_grid %>% 
-  select_best("spec")  # seleciona o melhor modelo baseado no rmse
-
-best
-
-```
-
-```{r}
-# Finalizando o modelo com os melhores parâmetros
-boost_fit_final <- finalize_model(boost2, parameters = best) %>%
-  fit(Response ~ ., data = treinamento_proc)
-
-# Predições com o modelo final
-fitted_boost_final <- boost_fit_final %>%
-  predict(new_data = teste_proc) %>%
-  mutate(observado = teste_proc$Response,
-         modelo = "boosting - tune")
-```
-
-```{r}
-
-
-# Avaliando o desempenho dos modelos
-fitted %>% 
-  group_by(modelo) %>%
-  metrics(truth = observado, estimate = .pred)
-```
-
-Redes neurais
-
-```{r}
-
-# Preparando dados
-
-# Selecionando variáveis explicativas do treinamento e convertendo dados para matriz
-#X_trn <- treinamento %>% 
-#  select(-Response) %>% 
-#  as.matrix()
-
-X_trn <-treinamento %>%
-  mutate(across(c("MntTotal", "MntRegularProds", "MntWines", 
-                                  "MntFruits", "MntMeatProducts", "MntFishProducts", 
-                                  "MntSweetProducts", "MntGoldProds", "NumDealsPurchases",
-                                  "NumCatalogPurchases", "NumStorePurchases", "NumWebPurchases"), scale)) %>% 
-  select(c("MntTotal", "MntRegularProds", "MntWines", 
-                                  "MntFruits", "MntMeatProducts", "MntFishProducts", 
-                                  "MntSweetProducts", "MntGoldProds", "NumDealsPurchases",
-                                  "NumCatalogPurchases", "NumStorePurchases", "NumWebPurchases", "Response")) %>% 
-  select(-Response) %>% 
-  as.matrix()
-```
-
-```{r}
-# Selecionando variáveis explicativas do teste e convertendo dados para matriz
-#X_tst <- teste %>% 
-#  select(-Response) %>% 
-#  as.matrix()
-```
-
-```{r}
-
-# Padroniza os dados de treinamento
-
-X_tst <-teste %>%
-  mutate(across(c("MntTotal", "MntRegularProds", "MntWines", 
-                                  "MntFruits", "MntMeatProducts", "MntFishProducts", 
-                                  "MntSweetProducts", "MntGoldProds", "NumDealsPurchases",
-                                  "NumCatalogPurchases", "NumStorePurchases", "NumWebPurchases"), scale)) %>% 
-  select(c("MntTotal", "MntRegularProds", "MntWines", 
-                                  "MntFruits", "MntMeatProducts", "MntFishProducts", 
-                                  "MntSweetProducts", "MntGoldProds", "NumDealsPurchases",
-                                  "NumCatalogPurchases", "NumStorePurchases", "NumWebPurchases", "Response")) %>% 
-  select(-Response) %>% 
-  as.matrix()
-
-
-# Padroniza os dados de teste usando os mesmos parâmetros de centralização e escala dos dados de treinamento
-#X_tst <- scale(X_tst,
-#               center = attr(X_trn, "scaled:center"),
-#               scale = attr(X_trn, "scaled:scale"))
-
-# Cria um modelo sequencial
-net <- keras_model_sequential() %>% 
-    layer_dense(units = 128, activation = "relu", input_shape = ncol(X_trn)) %>% # número de características de entrada
-    layer_dropout(rate=0.2) %>%  
-    layer_dense(units = 64, activation = "relu") %>%
-    layer_dropout(rate=0.1) %>% 
-    layer_dense(units = 32, activation = "relu") %>%
-    #layer_dropout(rate=0.3) %>%  
-    layer_dense(units = 8, activation = "relu") %>%
-    layer_dense(units = 1, activation = "sigmoid") 
-
-```
-
-```{r}
-# Modelo para classificação
-net <- compile(net, 
-               loss = "binary_crossentropy", 
-               optimizer = "rmsprop", 
-               metrics = c("Accuracy"))
-
-
-# Treino dwo modelo para classificação
-history_class <- fit(
-  net, X_trn, treinamento$Response, 
-  batch_size = 16, epochs = 20, 
-  validation_split = 0.2)
-
 
 
 ```
