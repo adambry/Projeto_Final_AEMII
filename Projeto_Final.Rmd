@@ -369,9 +369,9 @@ dados$Response <- as.factor(dados$Response)
 # Gráficos de dispersão
 par_variaveis <- list(c('MntMeatProducts', 'MntFishProducts'), c('MntGoldProds', 'MntSweetProducts'), c('Recency', 'MntWines'))
 for (par in par_variaveis) {
-  p <- ggplot(dados, aes(x = !!sym(pair[1]), y = !!sym(pair[2]), color = Response)) +
+  p <- ggplot(dados, aes(x = !!sym(par[1]), y = !!sym(par[2]), color = Response)) +
     geom_point() +
-    labs(title = paste('Relação entre', pair[1], 'e', pair[2], 'por Response'), x = pair[1], y = pair[2])
+    labs(title = paste('Relação entre', par[1], 'e', par[2], 'por Response'), x = par[1], y = par[2])
   print(p)
 }
 
@@ -453,6 +453,25 @@ teste_proc <- bake(receita_prep, new_data = teste) # obtem os dados de teste pro
 
 ## 3.1. Modelos Supervisionados
 
+```{r}
+# Convertendo 'Response' para fator nos conjuntos de dados
+treinamento_proc$Response <- factor(treinamento_proc$Response, levels = c("0", "1"))
+teste_proc$Response <- factor(teste_proc$Response, levels = c("0", "1"))
+
+```
+
+
+```{r}
+resultados_modelos <- tibble(
+  modelo = character(),
+  auc = numeric(),
+  sensibilidade = numeric(),
+  sensitividade = numeric(),
+  verdposit = numeric(),
+  verdneg = numeric()
+)
+```
+
 # 3.1.1. Regressão Logística
 
 Definindo modelo, engine e realizando o fit
@@ -471,12 +490,56 @@ tidy(fit_glm) # estimativas do modelo ajustado em formato tidy
 Criando Tibble com resultado
 
 ```{r}
-fitted <- fit_glm %>% 
+# Cálculo de métricas para o modelo de regressão logística
+fitted_glm <- fit_glm %>%
   predict(new_data = teste_proc, type = "prob") %>% # realiza predicao para os dados de teste
-  mutate(observado = teste_proc$Response, # cria uma coluna com o valor observado de default
-         modelo = "logistica") # cria uma coluna para indicar qual o modelo ajustado
+  bind_cols(teste_proc %>% select(Response)) %>% 
+  mutate(
+    observado_bin = as.factor(Response),  # cria uma coluna com o valor observado de default
+    pred_bin = as.factor(if_else(.pred_1 > 0.5, "1", "0"))
+  )
+```
 
-head(fitted) # mostra as 6 primeiras linhas do tibble criado
+
+
+
+```{r}
+#fitted_glm <- fit_glm %>% 
+#  predict(new_data = teste_proc, type = "prob") %>% # realiza predicao para os dados de teste
+#  mutate(observado = teste_proc$Response, # cria uma coluna com o valor observado de default
+#         modelo = "logistica") # cria uma coluna para indicar qual o modelo ajustado
+
+#head(fitted) # mostra as 6 primeiras linhas do tibble criado
+```
+```{r}
+# Calculando as métricas
+auc_glm <- roc_auc(fitted_glm, truth = observado_bin, .pred_1)
+sens_glm <- sens(fitted_glm, truth = observado_bin, estimate = pred_bin, event_level = "second")
+spec_glm <- spec(fitted_glm, truth = observado_bin, estimate = pred_bin, event_level = "second")
+ppv_glm <- ppv(fitted_glm, truth = observado_bin, estimate = pred_bin, event_level = "second")
+npv_glm <- npv(fitted_glm, truth = observado_bin, estimate = pred_bin, event_level = "second")
+
+```
+
+```{r}
+# Adicionando ao dataframe de resultados
+resultados_modelos <- resultados_modelos %>% 
+  bind_rows(tibble(
+    modelo = "Regressão Logística",
+    auc = auc_glm$.estimate,
+    sensibilidade = sens_glm$.estimate,
+    sensitividade = spec_glm$.estimate,
+    verdposit = ppv_glm$.estimate,
+    verdneg = npv_glm$.estimate
+  ))
+resultados_modelos
+```
+```{r}
+# Supondo que 'fitted_glm' seja o dataframe com suas previsões e observações
+confusion_matrix <- confusionMatrix(data = fitted_glm$pred_bin, reference = fitted_glm$observado_bin, positive = "1")
+
+# Imprimindo a matriz de confusão
+confusion_matrix
 ```
 
 ### 2.1.2. LASSO
