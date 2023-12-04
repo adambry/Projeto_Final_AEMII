@@ -94,6 +94,7 @@ library (imbalance)
 library (tensorflow) 
 library (caret)
 library (rlang)
+library(pROC)
 ```
 
 # Importação de dados
@@ -360,7 +361,6 @@ for (col in colunas_selecionadas) {
 }
 ```
 
-<font color = red> não rodou. Error: object 'pair' not found <font>
 
 ```{r}
 
@@ -380,40 +380,7 @@ for (par in par_variaveis) {
 
 ```
 
-### 3.2.2. Variáveis categóricas
 
-<font color = red> Não rodou. 'martial_vars' not found <font>
-
-```{r}
-
-# Preparando os dados para análise proporcional de variáveis dummy
-calcular_proporcao <- function(data, vars) {
-  data %>%
-    pivot_longer(cols = all_of(vars)) %>%
-    group_by(name) %>%
-    summarise(Response_0 = sum(value == 0, na.rm = TRUE),
-              Response_1 = sum(value == 1, na.rm = TRUE)) %>%
-    mutate(Total = Response_0 + Response_1,
-           Prop_Aceitou = Response_1 / Total,
-           Prop_NaoAceitou = Response_0 / Total) %>%
-    select(name, Prop_Aceitou, Prop_NaoAceitou) %>%
-    pivot_longer(cols = c("Prop_Aceitou", "Prop_NaoAceitou"), names_to = "Response", values_to = "Proporcao")
-}
-
-# Estado Civil
-marital_proportions <- calcular_proporcao(dados, marital_vars)
-ggplot(marital_proportions, aes(x = name, y = Proporcao, fill = Response)) +
-  geom_bar(stat = 'identity', position = position_dodge()) +
-  labs(title = 'Proporção de Aceitação da Campanha por Estado Civil', x = 'Estado Civil', y = 'Proporção')
-
-# Nível de Educação
-education_proportions <- calcular_proporcao(dados, education_vars)
-ggplot(education_proportions, aes(x = name, y = Proporcao, fill = Response)) +
-  geom_bar(stat = 'identity', position = position_dodge()) +
-  labs(title = 'Proporção de Aceitação da Campanha por Nível de Educação', x = 'Nível de Educação', y = 'Proporção')
-
-
-```
 
 ## 3.3. Análise Multivariada
 
@@ -465,6 +432,7 @@ teste_proc$Response <- factor(teste_proc$Response, levels = c("0", "1"))
 ```{r}
 resultados_modelos <- tibble(
   modelo = character(),
+  acuracia = numeric(),
   auc = numeric(),
   sensibilidade = numeric(),
   sensitividade = numeric(),
@@ -497,9 +465,10 @@ fitted_glm <- fit_glm %>%
   bind_cols(teste_proc %>% select(Response)) %>% 
   mutate(
     observado_bin = as.factor(Response),  # cria uma coluna com o valor observado de default
-    pred_bin = as.factor(if_else(.pred_1 > 0.5, "1", "0"))
+    pred_bin = as.factor(if_else(.pred_1 > 0.25, "1", "0"))
   )
 ```
+
 
 
 
@@ -514,7 +483,8 @@ fitted_glm <- fit_glm %>%
 ```
 ```{r}
 # Calculando as métricas
-auc_glm <- roc_auc(fitted_glm, truth = observado_bin, .pred_1)
+acc_glm <- accuracy(fitted_glm, truth = observado_bin, estimate = pred_bin, event_level = "second")
+#auc_glm <- roc_auc(fitted_glm, truth = observado_bin, .pred_1)
 sens_glm <- sens(fitted_glm, truth = observado_bin, estimate = pred_bin, event_level = "second")
 spec_glm <- spec(fitted_glm, truth = observado_bin, estimate = pred_bin, event_level = "second")
 ppv_glm <- ppv(fitted_glm, truth = observado_bin, estimate = pred_bin, event_level = "second")
@@ -527,7 +497,8 @@ npv_glm <- npv(fitted_glm, truth = observado_bin, estimate = pred_bin, event_lev
 resultados_modelos <- resultados_modelos %>% 
   bind_rows(tibble(
     modelo = "Regressão Logística",
-    auc = auc_glm$.estimate,
+    acuracia = acc_glm$.estimate,
+    #auc = auc_glm$.estimate,
     sensibilidade = sens_glm$.estimate,
     sensitividade = spec_glm$.estimate,
     verdposit = ppv_glm$.estimate,
@@ -566,7 +537,7 @@ lambda_tune <- tune_grid(lasso, # especificacao do modelo
                          receita,# a receita a ser aplicada a cada lote
                          resamples = cv_split, # os lotes da validacao cruzada
                          grid = 30,# quantas combinacoes de parametros vamos considerar
-                         metrics = metric_set(roc_auc, accuracy)) # metricas consideradas
+                         metrics = metric_set(roc_auc, sens)) # metricas consideradas
 
 autoplot(lambda_tune) # plota os resultados
 
@@ -584,14 +555,40 @@ fit_lasso <- finalize_model(lasso, parameters = best) %>% # informa os valores d
 ```
 
 ```{r}
-fitted <- fitted %>% #      empilha as previsoes do lasso
-  bind_rows(fit_lasso %>% # os valores preditos pelo lasso
-              predict(new_data = teste_proc, type = "prob") %>% 
-              mutate(observado = teste_proc$Response, 
-                     modelo = "lasso"))
+fitted_lasso <- fit_lasso %>%
+  predict(new_data = teste_proc, type = "prob") %>% 
+  bind_cols(teste_proc %>% select(Response)) %>% 
+  mutate(
+    observado_bin = as.factor(Response),  # cria uma coluna com o valor observado
+    pred_bin = as.factor(if_else(.pred_1 > 0.5, "1", "0"))  # cria uma coluna para as previsões
+  )
+```
 
-head(fitted)
-tail(fitted)
+```{r}
+# Calculando as métricas para LASSO
+acc_lasso <- accuracy(fitted_lasso, truth = observado_bin, estimate = pred_bin, event_level = "second")
+auc_lasso <- roc_auc(fitted_lasso, truth = observado_bin, .pred_1)
+sens_lasso <- sens(fitted_lasso, truth = observado_bin, estimate = pred_bin, event_level = "second")
+spec_lasso <- spec(fitted_lasso, truth = observado_bin, estimate = pred_bin, event_level = "second")
+ppv_lasso <- ppv(fitted_lasso, truth = observado_bin, estimate = pred_bin, event_level = "second")
+npv_lasso <- npv(fitted_lasso, truth = observado_bin, estimate = pred_bin, event_level = "second")
+
+```
+```{r}
+# Adicionando os resultados do LASSO ao dataframe de resultados
+resultados_modelos <- resultados_modelos %>% 
+  bind_rows(tibble(
+    modelo = "LASSO",
+    acuracia = acc_lasso$.estimate,
+    auc = auc_lasso$.estimate,
+    sensibilidade = sens_lasso$.estimate,
+    sensitividade = spec_lasso$.estimate,
+    verdposit = ppv_lasso$.estimate,
+    verdneg = npv_lasso$.estimate,
+
+  ))
+resultados_modelos
+
 ```
 
 ### 2.1.3. Ridge
@@ -617,7 +614,7 @@ lambda_tune <- tune_grid(ridge, # especificacao do modelo
                          receita,# a receita a ser aplicada a cada lote
                          resamples = cv_split, # os lotes da validacao cruzada
                          grid = 30,# quantas combinacoes de parametros vamos considerar
-                         metrics = metric_set(roc_auc, accuracy)) # metricas consideradas
+                         metrics = metric_set(roc_auc, sens)) # metricas consideradas
 
 autoplot(lambda_tune) # plota os resultados
 
@@ -633,14 +630,40 @@ best <- lambda_tune %>%
 fit_ridge <- finalize_model(ridge, parameters = best) %>% # informa os valores de hiperparametros a serem considerados
   fit(Response ~ .,data = treinamento_proc) # executa o modelo com os valores de hiperparametros definidos acima
 
-fitted <- fitted %>% #      empilha as previsoes do lasso
-  bind_rows(fit_ridge %>% # os valores preditos pelo lasso
-              predict(new_data = teste_proc, type = "prob") %>% 
-              mutate(observado = teste_proc$Response, 
-                     modelo = "ridge"))
+fitted_ridge <- fit_ridge %>% 
+  predict(new_data = teste_proc, type = "prob") %>% 
+  bind_cols(teste_proc %>% select(Response)) %>% 
+  mutate(
+    observado_bin = as.factor(Response),  # cria uma coluna com o valor observado
+    pred_bin = as.factor(if_else(.pred_1 > 0.2, "1", "0"))  # cria uma coluna para as previsões
+  )
 
-head(fitted)
-tail(fitted)
+head(fitted_ridge)
+tail(fitted_ridge)
+```
+
+```{r}
+# Calculando as métricas para Ridge
+acc_ridge <- accuracy(fitted_ridge, truth = observado_bin, estimate = pred_bin, event_level = "second")
+auc_ridge <- roc_auc(fitted_ridge, truth = observado_bin, .pred_1)
+sens_ridge <- sens(fitted_ridge, truth = observado_bin, estimate = pred_bin, event_level = "second")
+spec_ridge <- spec(fitted_ridge, truth = observado_bin, estimate = pred_bin, event_level = "second")
+ppv_ridge <- ppv(fitted_ridge, truth = observado_bin, estimate = pred_bin, event_level = "second")
+npv_ridge <- npv(fitted_ridge, truth = observado_bin, estimate = pred_bin, event_level = "second")
+
+# Adicionando os resultados do Ridge ao dataframe de resultados
+resultados_modelos <- resultados_modelos %>% 
+  bind_rows(tibble(
+    modelo = "Ridge",
+    acuracia = acc_ridge$.estimate,
+    auc = auc_ridge$.estimate,
+    sensibilidade = sens_ridge$.estimate,
+    sensitividade = spec_ridge$.estimate,
+    verdposit = ppv_ridge$.estimate,
+    verdneg = npv_ridge$.estimate
+  ))
+
+resultados_modelos
 ```
 
 # 3.1.4. Floresta Aleatória
@@ -648,14 +671,12 @@ tail(fitted)
 Definindo o modelo, cálculo de importância das variáveis e tipo de previsão
 
 ```{r}
-
 rf <- rand_forest() %>%
   set_engine("ranger",
              importance = "permutation") %>%  
   set_mode("classification")
 
 rf
-
 ```
 
 Ajuste do modelo
@@ -681,12 +702,13 @@ fitted_rf <- rf_fit %>%
          modelo = "random forest")
 ```
 
-```{r}
-fitted <- fitted %>% 
-  bind_rows(fitted) # empilha o tibble fitted_rf abaixo do fitted_lm
 
-head(fitted)
-tail(fitted)
+```{r}
+#fitted <- fitted %>% 
+#  bind_rows(fitted) # empilha o tibble fitted_rf abaixo do fitted_lm
+
+#head(fitted)
+#tail(fitted)
 ```
 
 Avaliar desempenho
@@ -746,13 +768,36 @@ rf_fit2 <- finalize_model(rf2, parameters = best) %>% # informa os valores de hi
 Previsão para os dados de teste
 
 ```{r}
-fitted_rf2 <- rf_fit2 %>% # faz previsao para os dados de teste
-  predict(new_data = teste_proc, type = 'prob') %>% 
-  mutate(observado = teste_proc$Response, 
-         modelo = "random forest - tune")
+fitted_rf2 <- rf_fit2 %>%
+  predict(new_data = teste_proc, type = 'prob') %>%
+  bind_cols(teste_proc %>% select(Response)) %>%
+  mutate(
+    observado_bin = as.factor(Response),
+    pred_bin = as.factor(if_else(.pred_1 > 0.25, "1", "0"))
+  )
 
-fitted <- fitted %>%
-  bind_rows(fitted_rf2)
+# Calculando as métricas para a Floresta Aleatória
+acc_rf2 <- accuracy(fitted_rf2, truth = observado_bin, estimate = pred_bin, event_level = "second")
+auc_rf2 <- roc_auc(fitted_rf2, truth = observado_bin, .pred_1)
+sens_rf2 <- sens(fitted_rf2, truth = observado_bin, estimate = pred_bin, event_level = "second")
+spec_rf2 <- spec(fitted_rf2, truth = observado_bin, estimate = pred_bin, event_level = "second")
+ppv_rf2 <- ppv(fitted_rf2, truth = observado_bin, estimate = pred_bin, event_level = "second")
+npv_rf2 <- npv(fitted_rf2, truth = observado_bin, estimate = pred_bin, event_level = "second")
+
+# Adicionando os resultados da Floresta Aleatória ao dataframe de resultados
+resultados_modelos <- resultados_modelos %>%
+  bind_rows(tibble(
+    modelo = "Random Forest - Tuned",
+    acuracia = acc_rf2$.estimate,
+    auc = auc_rf2$.estimate,
+    sensibilidade = sens_rf2$.estimate,
+    sensitividade = spec_rf2$.estimate,
+    verdposit = ppv_rf2$.estimate,
+    verdneg = npv_rf2$.estimate
+  ))
+
+
+resultados_modelos
 ```
 
 <font color=red> esse deve ser o último snipet após realizar a tabela de resultado de todos os modelos <font>
@@ -1413,8 +1458,6 @@ for (par in par_variaveis) {
     labs(title = paste('Relação entre', pair[1], 'e', pair[2], 'por Response'), x = pair[1], y = pair[2])
   print(p)
 }
-
-
 
 ```
 
