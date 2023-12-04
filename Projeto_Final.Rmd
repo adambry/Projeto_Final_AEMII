@@ -94,7 +94,8 @@ library (imbalance)
 library (tensorflow) 
 library (caret)
 library (rlang)
-library(pROC)
+library (pROC)
+library (dials)
 ```
 
 # Importação de dados
@@ -800,15 +801,14 @@ resultados_modelos <- resultados_modelos %>%
 resultados_modelos
 ```
 
-<font color=red> esse deve ser o último snipet após realizar a tabela de resultado de todos os modelos <font>
 
 Boosting
 
 ```{r}
 # Definição do modelo de boosting
 boost <- boost_tree(mode = "classification") %>%
-  set_engine("xgboost") %>% #define o pacote que vai fazero ajuste do modelo
-  set_mode("classification") # define que é um modelo de classificação
+  set_engine("xgboost")  # define o motor que vai fazer o ajuste do modelo
+  #set_mode("classification") # define que é um modelo de classificação
 
 boost
 ```
@@ -826,27 +826,11 @@ vip(boost_fit)
 
 ```
 
+
 ```{r}
 # Predição para os dados de teste
 fitted_boost <- boost_fit %>% 
-  predict(new_data = teste_proc) %>%
-  mutate(observado = teste_proc$Response,
-         modelo = "boosting")
-
-# Empilhando os resultados das predições
-#fitted <- fitted_rf %>% 
-#bind_rows(fitted_boost)
-
-avaliacao_sens <- fitted_boost %>% 
-  group_by(modelo) %>%
-  yardstick::sens(observado, .pred_class)
-
-avaliacao_spec <- fitted_boost %>% 
-  group_by(modelo) %>%
-  yardstick::spec(observado, .pred_class)
-
-avaliacao <- bind_cols(avaliacao_sens, avaliacao_spec)
-avaliacao
+  predict(new_data = teste_proc)
 
 ```
 
@@ -857,16 +841,12 @@ avaliacao
 boost2 <- boost_tree(
     trees = tune(),               
     learn_rate = tune(),          
-    tree_depth = tune()
+    tree_depth = tune() 
 ) %>% 
   set_engine("xgboost") %>% 
   set_mode("classification")
 boost2
 
-```
-
-```{r}
-library(dials)
 ```
 
 ```{r}
@@ -877,12 +857,12 @@ cv_split <- vfold_cv(treinamento, v = 10)  # validação cruzada
 
 registerDoParallel() # Parallelize the process
 
-# Exemplo de definição de um grid de hiperparâmetros
+# Definição do grid de hiperparâmetros
 hyper_grid <- grid_regular(
   trees(),
   tree_depth(),
   learn_rate(),
-  levels = 5
+  levels = 4
 )
 
 # Para tunar os hiperparâmetros
@@ -891,11 +871,20 @@ boost_grid <- tune_grid(
   receita,
   resamples = cv_split,
   grid = hyper_grid,  # número de combinações de parâmetros
-  metrics = metric_set(yardstick::accuracy, yardstick::sens, yardstick::spec)  # métricas para avaliação
+  metrics = metric_set(roc_auc, sens, spec)  # métricas para avaliação
 )
 
 autoplot(boost_grid) # Visualize the results
 
+```
+
+```{r}
+# Encontrar o ponto de corte ótimo
+#coords(roc_curve, "best", ret="threshold")
+
+# Ajustar o ponto de corte com base no valor encontrado
+#novo_ponto_corte <- coords(roc_curve, "best", ret="threshold")
+#fitted_boost_final$pred_bin <- as.factor(if_else(fitted_boost_final$.pred_1 > novo_ponto_corte, "1", "0"))
 ```
 
 ```{r}
@@ -905,7 +894,7 @@ boost_grid %>%
 
 # Melhor conjunto de parâmetros
 best <- boost_grid %>% 
-  select_best("spec")  # seleciona o melhor modelo baseado no rmse
+  select_best("roc_auc")  # seleciona o melhor modelo baseado no sens
 
 best
 
@@ -918,18 +907,43 @@ boost_fit_final <- finalize_model(boost2, parameters = best) %>%
 
 # Predições com o modelo final
 fitted_boost_final <- boost_fit_final %>%
-  predict(new_data = teste_proc) %>%
-  mutate(observado = teste_proc$Response,
-         modelo = "boosting - tune")
+  predict(new_data = teste_proc, type = "prob") %>%
+  bind_cols(teste_proc %>% select(Response)) %>%
+  mutate(
+    observado_bin = as.factor(Response),
+    pred_bin = as.factor(if_else(.pred_1 > 0.18, "1", "0"))  # Converte probabilidades em classificações binárias
+  )
+
+# Garantindo que 'pred_bin' tenha os mesmos níveis que 'observado_bin'
+fitted_boost_final$pred_bin <- factor(fitted_boost_final$pred_bin, levels = levels(fitted_boost_final$observado_bin))
+
+# Calculando as métricas para o modelo de Boosting
+acc_boost_final <- accuracy(fitted_boost_final, truth = observado_bin, estimate = pred_bin, event_level = "second")
+auc_boost_final <- roc_auc(fitted_boost_final, truth = observado_bin, .pred_1)
+sens_boost_final <- sens(fitted_boost_final, truth = observado_bin, estimate = pred_bin, event_level = "second")
+spec_boost_final <- spec(fitted_boost_final, truth = observado_bin, estimate = pred_bin, event_level = "second")
+ppv_boost_final <- ppv(fitted_boost_final, truth = observado_bin, estimate = pred_bin, event_level = "second")
+npv_boost_final <- npv(fitted_boost_final, truth = observado_bin, estimate = pred_bin, event_level = "second")
+
+
+# Adicionando os resultados do modelo de Boosting ao dataframe de resultados
+resultados_modelos <- resultados_modelos %>%
+  bind_rows(tibble(
+    modelo = "Boosting",
+    acuracia = acc_boost_final$.estimate,
+    auc = auc_boost_final$.estimate,
+    sensibilidade = sens_boost_final$.estimate,
+    sensitividade = spec_boost_final$.estimate,
+    verdposit = ppv_boost_final$.estimate,
+    verdneg = npv_boost_final$.estimate
+  ))
+
+# Imprimindo os resultados atualizados
+resultados_modelos
+
 ```
-
 ```{r}
-
-
-# Avaliando o desempenho dos modelos
-fitted %>% 
-  group_by(modelo) %>%
-  metrics(truth = observado, estimate = .pred)
+confusionMatrix(data = fitted_boost_final$pred_bin, reference = fitted_boost_final$observado_bin)
 ```
 
 Redes neurais
@@ -1011,7 +1025,6 @@ history_class <- fit(
   net, X_trn, treinamento$Response, 
   batch_size = 16, epochs = 20, 
   validation_split = 0.2)
-
 
 
 ```
