@@ -92,7 +92,7 @@ library (corrplot)
 library (imbalance)
 library (tensorflow) 
 library (caret)
-library(rlang)
+library (rlang)
 ```
 
 # Importação de dados
@@ -101,105 +101,92 @@ library(rlang)
 urlfile <- "https://raw.githubusercontent.com/nailson/ifood-data-business-analyst-test/master/ifood_df.csv"
 dados <- read_csv(url(urlfile))
 ```
+
 # Geração de metadados
 
 ```{r}
-metadata <- dados  %>%
-  lapply(type_sum) %>%
-  as_tibble() %>%
-  pivot_longer(cols = 1:ncol(dados),
-               names_to = "Coluna",
-               values_to = "Tipo") %>%
-  inner_join(
-    dados %>%
-      summarise(across(everything(), ~sum(is.na(.)))) %>%
-      pivot_longer(cols = 1:ncol(dados),
-                   names_to = "Coluna",
-                   values_to = "Total NA")
-  )
-
-metadata
+# metadata <- dados  %>%
+#   lapply(type_sum) %>%
+#   as_tibble() %>%
+#   pivot_longer(cols = 1:ncol(dados),
+#                names_to = "Coluna",
+#                values_to = "Tipo") %>%
+#   inner_join(
+#     dados %>%
+#       summarise(across(everything(), ~sum(is.na(.)))) %>%
+#       pivot_longer(cols = 1:ncol(dados),
+#                    names_to = "Coluna",
+#                    values_to = "Total NA")
+#   )
+# 
+# metadata
 ```
 
-# 1. Tratamento
+# 1. Análise Descritiva
 
 ```{r}
 summary(dados)
 ```
 
-Verificando ausência de valores
+```{r}
+skim(dados)
+```
+
+## 1.1. Verificando ausência de valores
 
 ```{r}
 colSums(is.na(dados))
 ```
+
 A base de dados não possui valores ausentes.
 
-Verificando o tipo de dados de cada coluna. 
+## 1.2. Verificando o tipo de dados de cada coluna.
 
 ```{r}
 sapply(dados, class)
 ```
+
 Observa-se que todos as colunas são do tipo numérica. Isso ocorre porque as variáveis categóricas, como estado civil (marital) e nível de educação (education), já estão convertidas para dummy.
 
-Verificando valores negativos.
+## 1.3. Verificando valores negativos.
 
 ```{r}
 sapply(dados, function(x) sum(x < 0))
 
 ```
-A variável "MntRegularProds", que representa os gastos com produtos regulares, é a única que apresenta valores negativos. 
 
-Verificando colunas com valores únicos.
+A variável "MntRegularProds", que representa os gastos com produtos regulares, é a única que apresenta valores negativos.
+
+## 1.4. Verificando colunas com valores únicos.
 
 ```{r}
 col_valores_unicos <- sapply(dados, function(x) length(unique(x)) == 1)
 names(dados)[col_valores_unicos]
 ```
 
-As colunas "Z_CostContact" e "Z_Revenue", que representam, respectivamente, o custo do contato e o valor da receita, possuem um único valor em todas as observações. 
+As colunas "Z_CostContact" e "Z_Revenue", que representam, respectivamente, o custo do contato e o valor da receita, possuem um único valor em todas as observações.
 
 Assim, pontos a serem destacados sobre a análise inicial dos dados.
 
-1. Ausência de valores vazios.
-2. Tipo dos dados estão corretos.
-3. Variáveis categóricas estão previamente tratadas como dummies.
-4. A coluna "MntRegularProds" possui valores negativos.
-5. As colunas "Z_CostContact" e "Z_Revenue" possuem um único valor em todas as observações. 
+1.  Ausência de valores vazios.
+2.  Tipo dos dados estão corretos.
+3.  Variáveis categóricas estão previamente tratadas como dummies.
+4.  A coluna "MntRegularProds" possui valores negativos.
+5.  As colunas "Z_CostContact" e "Z_Revenue" possuem um único valor em todas as observações.
 
-## 1.1. Limpeza
-
-Na análise realizada, indentificamos que a variável "MntRegularProds", que indica o valor das compras efetuadas na plataforma, possui 3 valores negativos. Considerando que os valores das compras não podem ser negativos por natureza e que o número de observações com essa característica é pequeno, optamos por remover esses dados da base.
-
-```{r}
-# filtrando valores negativos da base
-dados <- dados %>%
-            filter (dados$MntRegularProds > 0)
-```
-
-As colunas "Z_CostContact" e "Z_Revenue", que representam, respectivamente, o custo do contato e o valor da receita, possuem um único valor em todas as observações. Logo, essas colunas não contribuem com informações úteis para aprimorar a precisão dos modelos preditivos ou da segmentação dos clientes. Portanto, estas variáveis serão excluídas da base.
-
-```{r}
-col_rem <- c("Z_CostContact", "Z_Revenue")
-
-dados <- dados %>% select(-one_of(col_rem))
-```
-
-```{r}
-dados
-```
-
-## 1.2. Análise de outliers
+## 1.5. Análise de outliers
 
 Para melhor funcionamento dos modelos, verificaremos a existência de outliers nas colunas com valores numéricos.
 
 Obs: Não consideramos colunas com valores numéricos binários ou que não façam sentido de terem seus outliers analisados.
 
-Verificando colunas com dados binários. 
+Verificando colunas com dados binários.
 
 ```{r}
 colunas_binarias <- sapply(dados, function(x) length(unique(x)) == 2)
 names(dados)[colunas_binarias]
 ```
+
 ```{r}
 # Selecionar colunas não-binárias
 colunas_nao_binarias <- names(dados)[!colunas_binarias]
@@ -220,19 +207,50 @@ for (coluna in colunas_nao_binarias) {
 }
 ```
 
-Verificando distribuição dos dados com gráficos Bloxplot
+coloquei comentado porque não rodou aqui ( tiago )
 
 ```{r}
 # Configuração de layout para exibir 4x5 boxplots
 par(mfrow = c(4, 5), mar = c(2, 2, 2, 2))
 
 #Plot dos boxplots
-for (coluna in colunas_nao_binarias) {  
+for (coluna in colunas_nao_binarias) {
   boxplot(dados[[coluna]], main = coluna, coluna = "lightblue", border = "black", notch = TRUE)
 }
 ```
 
-# 2. Análise Exploratória de Dados
+Dados que temos outliers nos dados, faremos a normalização dos dados na etapa de utilização dos TidyModels para os modelos aplicados.
+
+# 2. Tratamento dos dados
+
+## 2.1 Limpeza
+
+Na análise realizada, indentificamos que a variável "MntRegularProds", que indica o valor das compras efetuadas na plataforma, possui 3 valores negativos. Considerando que os valores das compras não podem ser negativos por natureza e que o número de observações com essa característica é pequeno, optamos por remover esses dados da base.
+
+```{r}
+# filtrando valores negativos da base 
+dados <- dados %>%             
+  filter (dados$MntRegularProds > 0)
+```
+
+As colunas "Z_CostContact" e "Z_Revenue", que representam, respectivamente, o custo do contato e o valor da receita, possuem um único valor em todas as observações. Logo, essas colunas não contribuem com informações úteis para aprimorar a precisão dos modelos preditivos ou da segmentação dos clientes. Portanto, estas variáveis serão excluídas da base.
+
+```{r}
+col_rem <- c("Z_CostContact", "Z_Revenue")  
+dados <- dados %>% select(-one_of(col_rem))
+```
+
+```{r}
+dados
+```
+
+# 3. Análise Exploratória de Dados
+
+## 3.1. Análise Univariada
+
+### 3.1.1. Variáveis Numéricas
+
+#### 3.1.1.1. Variáveis de Campanhas de Marketing
 
 ```{r}
 # Contagem de frequências para cada campanha
@@ -256,6 +274,7 @@ print(table(dados$Response))
 
 ```
 
+#### 3.1.1.2. Variável Resposta
 
 ```{r}
 # Análise da variável 'Response'
@@ -265,17 +284,71 @@ ggplot(dados, aes(x = Response)) +
 
 ```
 
-Conforme observado, em todas as campanhas realizadas, o percentual de aceitação da campanha é muito inferior ao percentual de não aceitação, inclusive no caso da variável "Response". Esse desbalanceamento dos dados pode ocasionar problemas na previsão do modelo, visto que o modelo pode apresentar um erro maior na classificação da classe minoritária e, ainda assim, apresentar uma alta acurácia do modelo. 
+Conforme observado, em todas as campanhas realizadas, o percentual de aceitação da campanha é muito inferior ao percentual de não aceitação, inclusive no caso da variável "Response". Esse desbalanceamento dos dados pode ocasionar problemas na previsão do modelo, visto que o modelo pode apresentar um erro maior na classificação da classe minoritária e, ainda assim, apresentar uma alta acurácia do modelo.
 
 Dessa forma, é importante entender o efeito do falso positivo e do falso negativo para o cenário analisado. Como o objetivo da nossa previsão é decidir se compensa enviar ou não a sexta campanha de marketing para um cliente, então as consequências de uma classificação errada para o cliente são:
 
-- Falso negativo, que seria uma previsão errada de que um cliente não vai aceitar a campanha, é um custo de oportunidade.
-- Falso positivo, que seria uma previsão errada de que um cliente vai aceitar a campanha, implica no custo do envio da proposta de marketing.
+-   Falso negativo, que seria uma previsão errada de que um cliente não vai aceitar a campanha, é um custo de oportunidade.
+-   Falso positivo, que seria uma previsão errada de que um cliente vai aceitar a campanha, implica no custo do envio da proposta de marketing.
 
+### 3.1.2. Variáveis Categóricas
+
+Como as variáveis categóricas estão no formato de one-hot encoding, vamos retorná-las para suas configurações originais para analisá-las.
+
+#### 3.1.2.1 Criando coluna maritial_status
 
 ```{r}
+# Copiando a tabela original
+aux <- dados
+```
 
-# Análises bivariadas com variáveis numéricas
+```{r}
+one_hot_cols <- c("marital_Divorced", "marital_Married", "marital_Single", "marital_Together", "marital_Widow")
+
+aux$marital_status <- colnames(aux[one_hot_cols])[max.col(aux[one_hot_cols],"first")] 
+```
+
+```{r}
+#removendo colunas codificadas da base
+aux <- aux[, !(names(aux) %in% one_hot_cols)]
+
+```
+
+#### 3.1.2.2. Criando coluna Education_level
+
+```{r}
+one_hot_cols <- c("education_2n Cycle", "education_Basic", "education_Graduation", "education_Master", "education_PhD")
+
+aux$education_level <- colnames(aux[one_hot_cols])[max.col(aux[one_hot_cols],"first")] 
+```
+
+```{r}
+aux <- aux[, !(names(aux) %in% one_hot_cols)]
+
+```
+
+#### 3.1.2.3 Tabela de frequência
+
+```{r}
+tabela_frequencia_absoluta <- table(aux$marital_status)
+
+tabela_frequencia_relativa <- prop.table(tabela_frequencia_absoluta)*100
+
+tabela_frequencia <- cbind('Frequencia Absoluta' = tabela_frequencia_absoluta, 'Frequencia Relativa' = tabela_frequencia_relativa)
+
+print(tabela_frequencia)
+
+```
+
+```{r}
+barplot(tabela_frequencia_absoluta, main = "Distribuição de marital_status", xlab = "marital_status", ylab = "Frequência")
+```
+
+## 3.2. Análise Bivariada
+
+### 3.2.1. Variáveis Numéricas
+
+```{r}
 colunas_selecionadas <- c('Income', 'Recency', 'MntWines', 'MntMeatProducts', 'MntFishProducts', 'MntSweetProducts')
 
 for (col in colunas_selecionadas) {
@@ -286,19 +359,29 @@ for (col in colunas_selecionadas) {
 }
 ```
 
-1. Income (Renda) vs Response:
+<font color = red> não rodou. Error: object 'pair' not found <font>
 
-2. Recency (Recência) vs Response: 
+```{r}
 
-3. MntWines (Gastos com Vinhos) vs Response: 
+# Convertendo 'Response' para fator
+dados$Response <- as.factor(dados$Response)
 
-4. MntMeatProducts (Gastos com Produtos de Carne) vs Response: 
+# Gráficos de dispersão
+par_variaveis <- list(c('MntMeatProducts', 'MntFishProducts'), c('MntGoldProds', 'MntSweetProducts'), c('Recency', 'MntWines'))
+for (par in par_variaveis) {
+  p <- ggplot(dados, aes(x = !!sym(pair[1]), y = !!sym(pair[2]), color = Response)) +
+    geom_point() +
+    labs(title = paste('Relação entre', pair[1], 'e', pair[2], 'por Response'), x = pair[1], y = pair[2])
+  print(p)
+}
 
-5. MntFishProducts (Gastos com Produtos de Peixe) vs Response: 
-
-6. MntSweetProducts (Gastos com Produtos Doces) vs Response: 
 
 
+```
+
+### 3.2.2. Variáveis categóricas
+
+<font color = red> Não rodou. 'martial_vars' not found <font>
 
 ```{r}
 
@@ -330,24 +413,10 @@ ggplot(education_proportions, aes(x = name, y = Proporcao, fill = Response)) +
 
 
 ```
-```{r}
 
-# Convertendo 'Response' para fator
-dados$Response <- as.factor(dados$Response)
+## 3.3. Análise Multivariada
 
-# Gráficos de dispersão
-par_variaveis <- list(c('MntMeatProducts', 'MntFishProducts'), c('MntGoldProds', 'MntSweetProducts'), c('Recency', 'MntWines'))
-for (par in par_variaveis) {
-  p <- ggplot(dados, aes(x = !!sym(pair[1]), y = !!sym(pair[2]), color = Response)) +
-    geom_point() +
-    labs(title = paste('Relação entre', pair[1], 'e', pair[2], 'por Response'), x = pair[1], y = pair[2])
-  print(p)
-}
-
-
-
-```
-
+## <font color = red> fazer análises que compreenderm mais de 2 variáveis e gráfico de correlação <font>
 
 ## 2. Separação entre treino e teste
 
@@ -387,6 +456,7 @@ teste_proc <- bake(receita_prep, new_data = teste) # obtem os dados de teste pro
 # 3.1.1. Regressão Logística
 
 Definindo modelo, engine e realizando o fit
+
 ```{r}
 fit_glm <- logistic_reg() %>% 
   set_engine("glm") %>% 
@@ -419,7 +489,6 @@ lasso <- logistic_reg(penalty = tune(), mixture = 1) %>% # define o modelo lasso
   set_mode("classification") # define que e'  problema de classificacao
 ```
 
-
 Validação Cruzada
 
 ```{r}
@@ -439,7 +508,6 @@ autoplot(lambda_tune) # plota os resultados
 
 ```
 
-
 ```{r}
 lambda_tune %>% 
   collect_metrics() # obtem as metricas calculadas
@@ -450,7 +518,6 @@ best <- lambda_tune %>%
 fit_lasso <- finalize_model(lasso, parameters = best) %>% # informa os valores de hiperparametros a serem considerados
   fit(Response ~ .,data = treinamento_proc) # executa o modelo com os valores de hiperparametros definidos acima
 ```
-
 
 ```{r}
 fitted <- fitted %>% #      empilha as previsoes do lasso
@@ -550,7 +617,6 @@ fitted_rf <- rf_fit %>%
          modelo = "random forest")
 ```
 
-
 ```{r}
 fitted <- fitted %>% 
   bind_rows(fitted) # empilha o tibble fitted_rf abaixo do fitted_lm
@@ -637,18 +703,19 @@ boost <- boost_tree(mode = "classification") %>%
 
 boost
 ```
+
 ```{r}
 # Ajuste do modelo aos dados de treinamento processados
 boost_fit <- boost %>% 
   fit(Response ~ ., data = treinamento_proc) # ajuste do modelo
 
 ```
+
 ```{r}
 # Importância das variáveis
 vip(boost_fit)
 
 ```
-
 
 ```{r}
 # Predição para os dados de teste
@@ -674,8 +741,6 @@ avaliacao
 
 ```
 
-
-
 ```{r}
 # Tune - Ajuste de hiperparâmetros
 
@@ -690,9 +755,11 @@ boost2 <- boost_tree(
 boost2
 
 ```
+
 ```{r}
 library(dials)
 ```
+
 ```{r}
 
 # Validação cruzada para ajuste de hiperparâmetros
@@ -721,6 +788,7 @@ boost_grid <- tune_grid(
 autoplot(boost_grid) # Visualize the results
 
 ```
+
 ```{r}
 
 boost_grid %>% 
@@ -754,9 +822,6 @@ fitted %>%
   group_by(modelo) %>%
   metrics(truth = observado, estimate = .pred)
 ```
-
-
-
 
 Redes neurais
 
@@ -824,8 +889,6 @@ net <- keras_model_sequential() %>%
 
 ```
 
-
-
 ```{r}
 # Modelo para classificação
 net <- compile(net, 
@@ -843,7 +906,6 @@ history_class <- fit(
 
 
 ```
-
 
 Avaliando o modelo
 
@@ -871,13 +933,11 @@ print(paste("Especificidade: ", specificity))
 print(paste("Acurácia: ", accuracy))
 
 ```
+
 ```{r}
 conf_mat
 
 ```
-
-
-
 
 Comparando desempenho dos modelos
 
@@ -912,6 +972,3 @@ fitfull %>% roc_auc(observado_bin, .pred_1)  %>%
  
 
 ```
-
-
-
