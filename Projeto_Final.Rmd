@@ -453,7 +453,7 @@ teste_proc <- bake(receita_prep, new_data = teste) # obtem os dados de teste pro
 
 ## 3.1. Modelos Supervisionados
 
-# 3.1.1. Regressão Logística
+### 3.1.1. Regressão Logística
 
 Definindo modelo, engine e realizando o fit
 
@@ -479,7 +479,7 @@ fitted <- fit_glm %>%
 head(fitted) # mostra as 6 primeiras linhas do tibble criado
 ```
 
-### 2.1.2. LASSO
+### 3.1.2. LASSO
 
 Criando o modelo
 
@@ -530,7 +530,7 @@ head(fitted)
 tail(fitted)
 ```
 
-### 2.1.3. Ridge
+### 3.1.3. Ridge
 
 Definindo o modelo, parãmetro de tunagem e engine
 
@@ -579,7 +579,7 @@ head(fitted)
 tail(fitted)
 ```
 
-# 3.1.4. Floresta Aleatória
+### 3.1.4. Floresta Aleatória
 
 Definindo o modelo, cálculo de importância das variáveis e tipo de previsão
 
@@ -972,3 +972,78 @@ fitfull %>% roc_auc(observado_bin, .pred_1)  %>%
  
 
 ```
+
+
+## 3.2. Modelos não Supervisionados
+
+### 3.2.1. KMeans
+
+Primeiramente é realizado o método do cotovelo para identificar o numero ótimo de clusters à serem utilizados
+
+```{r}
+set.seed(42)
+
+k <- 2:10
+tibble(k = k) %>% 
+  mutate(w = map_dbl(k, ~ kmeans(dados, centers = .x,
+                            nstart = 10)$tot.withinss)) %>%
+  ggplot(aes(k, w)) + 
+  geom_point() +
+  scale_x_continuous(breaks = k) +
+  geom_line()
+
+```
+Pelo método do cotovelo é visto que o valor de 5 é um ótimo do modelo, então é analisado esse cluster para a base de dados.
+
+```{r}
+set.seed(42)
+
+# Modelo com 5 clusters
+k_medias_5 <- kmeans(dados, 
+                    centers = 5,
+                    nstart = 10)
+
+dados_cluster_5 <- tibble(cluster = k_medias_5$cluster) %>% 
+  bind_cols(as_tibble(dados))
+
+head(dados_cluster_5)
+```
+Com os clusters criados, vai ser analisado a média de valores de alguma coluna para entender os tipos de clientes que foram identificados, assim como a contagem de clientes em cada cluster.
+
+```{r}
+# Calcular médias e contar linhas por cluster
+summary_stats <- dados_cluster_5 %>% 
+  group_by(cluster) %>% 
+  summarise(across(starts_with(c('Income', 'Kid', 'Teen', 'Mnt','Num', 'AcceptedCmpOverall')),
+                   list(mean = mean)),
+            count = n()) %>% 
+  rename_all(
+    ~str_remove_all(., paste(c("_mean", "Mnt", "Products", "Num", "Cmp"), collapse = "|"))
+    )
+
+heatmap(as.matrix(
+  summary_stats %>% 
+    select(-c("cluster"))), 
+  Colv = NA, Rowv = NA, scale = "column", cexCol = .65)
+
+```
+Com essa visualização é possível identificar alguns insights relacionado à escolha de clusters vindo do KMeans:
+
+- O cluster 1 apresenta clientes com uma renda menor quando comparado com outros clusters e representam uma parcela menor da base, além de não consumir tantos produtos no aplicativo, porém ainda acessa o site com frequência no mês. Além disso, são clientes que mais tem crianças em casa.
+
+- O cluster 2 são clientes que já tem uma renda levemente maior, e utilizam mais o aplicativos para compras, porém ainda não tem uma conversão completa. Diferentemente do primeiro cluster, esse segmento de clientes apresenta um valor maior de adolescentes em casa do que crianças, o que pode impactar a utilização de aplicativos. Eles representam uma parcela considerável de clientes da base.
+
+- O cluster 3 são clientes que tem uma utilização bem maior quando comparado comm o primeiro e terceiro clusters, além de ter uma renda maior. São clientes mais convertidos, que tem mais probabilidade de aderir a uma campanha e representam uma quantidade significativa na base.
+
+- O cluster 4 se assemelha muito com o primeiro cluster, porém são clientes com uma renda levemente maior e com mais frequência de adolescentes na casa e apresentam um consumo levemente maior comparado com o cluster 1. Eles são o cluster que mais apresentam clientes.
+
+- O cluster 5 seria de clientes que apresentam a maior renda e consequentemente com o maior ticket médio do aplicativo, e são mais engajados em campanhas de marketing, logo podem ser considerados como clientes totalmente convertidos.
+
+
+Com esses insights, o time de marketing pode adotar algumas estratégias para a próxima campanha de marketing, por exemplo:
+
+- Aumentar o ticket médio de clientes do cluster 5, oferecendo produtos com um valores mais alto, com om intuito de aumentar os lucros da empresa e atingir o break-even do investimento da campanha mais rápido
+
+- Converter clientes do cluster 3, oferecendo planos de fidelidade para estimular a utilização mais recorrente do aplicativo e, consequentemente, aumentando o consumo de produtos no aplicativo.
+
+- Aumentar o interesse de clientes do cluster 1, com cupons de desconto recorrentes no mês para o consumo geral no aplicativo.
